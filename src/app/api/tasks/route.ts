@@ -1,56 +1,78 @@
 import { connectToDatabase } from '@/lib/mongodb';
+import { escapeRegex, getOwner, handleApiError, jsonError, missingOwner, pickTaskFields } from '@/lib/api';
 import Task from '@/models/Task';
 import { NextRequest } from 'next/server';
 
-// GET /api/tasks - 모든 과제 조회
+const MAX_BULK = 50;
+
+// GET /api/tasks - 내 과제 조회
 export async function GET(request: NextRequest) {
+  const owner = getOwner(request);
+  if (!owner) return missingOwner();
+
   try {
     await connectToDatabase();
     const { searchParams } = request.nextUrl;
     const status = searchParams.get('status');
     const search = searchParams.get('search');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = { owner };
     if (status && status !== 'all') query.status = status;
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-        { notes: { $regex: search, $options: 'i' } },
-      ];
+      const pattern = { $regex: escapeRegex(search), $options: 'i' };
+      query.$or = [{ title: pattern }, { subject: pattern }, { notes: pattern }];
     }
 
-    const tasks = await Task.find(query).sort({ due_date: 1 }).lean();
+    const tasks = await Task.find(query).sort({ due_date: 1 }).select('-owner -__v').lean();
     return Response.json(tasks);
   } catch (error) {
-    console.error('GET /api/tasks error:', error);
-    return Response.json({ error: '과제 목록을 불러오는 데 실패했습니다.' }, { status: 500 });
+    return handleApiError(error, '과제 목록을 불러오는 데 실패했습니다.');
   }
 }
 
-// POST /api/tasks - 새 과제 생성
+// POST /api/tasks - 새 과제 생성 (배열을 보내면 여러 개를 한 번에 생성)
 export async function POST(request: NextRequest) {
+  const owner = getOwner(request);
+  if (!owner) return missingOwner();
+
   try {
     await connectToDatabase();
     const body = await request.json();
+    const items: unknown[] = Array.isArray(body) ? body : [body];
+    if (items.length === 0 || items.length > MAX_BULK) {
+      return jsonError(`한 번에 1~${MAX_BULK}개까지 등록할 수 있습니다.`, 400);
+    }
 
-    const task = new Task({
-      title: body.title,
-      subject: body.subject,
-      kind: body.kind,
-      due_date: body.due_date,
-      estimated_minutes: body.estimated_minutes ?? 30,
-      status: body.status ?? 'todo',
-      priority: body.priority ?? 'normal',
-      notes: body.notes ?? '',
-      completed_at: body.status === 'done' ? body.completed_at ?? null : null,
+    const docs = items.map((item) => {
+      const fields = pickTaskFields(item);
+      return {
+        ...fields,
+        owner,
+        completed_at: fields.status === 'done' ? fields.completed_at ?? null : null,
+      };
     });
 
-    await task.save();
-    return Response.json(task, { status: 201 });
+    const created = await Task.insertMany(docs);
+    // 응답에는 owner 등 내부 필드를 빼고 돌려준다
+    const result = await Task.find({ _id: { $in: created.map((doc) => doc._id) } })
+      .select('-owner -__v')
+      .lean();
+    return Response.json(Array.isArray(body) ? result : result[0], { status: 201 });
   } catch (error) {
-    console.error('POST /api/tasks error:', error);
-    return Response.json({ error: '과제를 저장하는 데 실패했습니다.' }, { status: 500 });
+    return handleApiError(error, '과제를 저장하는 데 실패했습니다.');
+  }
+}
+
+// DELETE /api/tasks - 내 과제 전체 삭제
+export async function DELETE(request: NextRequest) {
+  const owner = getOwner(request);
+  if (!owner) return missingOwner();
+
+  try {
+    await connectToDatabase();
+    const { deletedCount } = await Task.deleteMany({ owner });
+    return Response.json({ success: true, deletedCount });
+  } catch (error) {
+    return handleApiError(error, '과제를 삭제하는 데 실패했습니다.');
   }
 }

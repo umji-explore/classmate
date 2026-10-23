@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   LayoutDashboard, CalendarDays, ListTodo, BarChart2, Settings,
   Search, Bell, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, CheckCheck,
@@ -11,26 +11,11 @@ import Toast from '@/components/Toast';
 import {
   Task, TaskFormData, TaskStatus, SUBJECT_COLORS, STATUS_LABEL, KIND_COLOR,
 } from '@/types/task';
+import { dayDiff, fmtDate, getTodayISO, offsetDate, toLocalISO } from '@/lib/date';
+import { api, ApiError, loadDemoTasks, saveDemoTasks } from '@/lib/client';
 
 // ─── Helpers ──────────────────────────────────────────────────
 type Page = 'dashboard' | 'calendar' | 'tasks' | 'stats' | 'settings';
-
-const todayISO = (() => {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
-})();
-
-const offsetDate = (n: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-
-const fmtDate = (iso: string, opts?: Intl.DateTimeFormatOptions) =>
-  new Date(iso + 'T12:00:00').toLocaleDateString('ko-KR', opts ?? { month: 'short', day: 'numeric' });
-
-const dayDiff = (iso: string) =>
-  Math.round((new Date(iso + 'T12:00:00').getTime() - new Date(todayISO + 'T12:00:00').getTime()) / 86400000);
 
 const dueText = (t: Task): string => {
   const d = dayDiff(t.due_date);
@@ -40,10 +25,13 @@ const dueText = (t: Task): string => {
   return `${d}일 후 마감`;
 };
 
-const isOverdue = (t: Task) => t.status !== 'done' && t.due_date < todayISO;
+const isOverdue = (t: Task) => t.status !== 'done' && t.due_date < getTodayISO();
 
-// Demo seed data for when DB is empty / loading
-const DEMO_TASKS: Omit<Task, '_id'>[] = [
+const errorMessage = (e: unknown, fallback: string) =>
+  e instanceof ApiError ? e.message : fallback;
+
+// 예시 데이터 — 날짜는 호출 시점 기준으로 계산 (모듈 로드 시 new Date()를 쓰면 prerender 오류)
+const makeDemoTasks = (): TaskFormData[] => [
   { title: '수학 문제집 5단원 풀기', subject: '수학', kind: '과제', due_date: offsetDate(0), estimated_minutes: 40, status: 'doing', priority: 'normal', notes: '짝수 번호 풀이', completed_at: null },
   { title: '과학 실험 보고서 제출', subject: '과학', kind: '수행평가', due_date: offsetDate(1), estimated_minutes: 60, status: 'todo', priority: 'high', notes: '실험 사진 포함', completed_at: null },
   { title: '영어 단어 3과 암기', subject: '영어', kind: '과제', due_date: offsetDate(2), estimated_minutes: 25, status: 'todo', priority: 'normal', notes: '단어 30개', completed_at: null },
@@ -54,6 +42,9 @@ const DEMO_TASKS: Omit<Task, '_id'>[] = [
   { title: '체육 준비물 확인', subject: '기타', kind: '학교 행사', due_date: offsetDate(4), estimated_minutes: 10, status: 'done', priority: 'normal', notes: '운동복 챙기기', completed_at: offsetDate(-2) },
 ];
 
+const withDemoIds = (list: TaskFormData[]): Task[] =>
+  list.map((t, i) => ({ ...t, _id: `demo-${Date.now()}-${i}` }));
+
 const TIPS = [
   '과제에 예상 시간을 적어두면 하루 계획을 세우기 쉬워요.',
   '마감이 가까운 과제부터 처리하면 불안감이 줄어들어요.',
@@ -61,8 +52,30 @@ const TIPS = [
   '완료한 과제를 체크하는 습관이 성취감을 높여줘요.',
 ];
 
+// ─── Entry: 브라우저에서만 앱을 렌더링 ────────────────────────────
+// 이 앱은 "오늘 날짜"와 기기별 저장소에 의존하므로, 빌드 시점 prerender에서는
+// 날짜를 읽지 않는 기본 화면만 그리고 실제 앱은 브라우저에서 렌더링한다.
+const subscribeNoop = () => () => {};
+
+export default function Home() {
+  const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
+  if (!isClient) return <AppShellFallback />;
+  return <ClassMateApp />;
+}
+
+function AppShellFallback() {
+  return (
+    <div className="app-layout">
+      <Sidebar activePage="dashboard" onNavigate={() => {}} />
+      <main className="main-content">
+        <div className="spinner" aria-label="로딩 중" />
+      </main>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────
-export default function ClassMateApp() {
+function ClassMateApp() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,147 +83,178 @@ export default function ClassMateApp() {
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTask, setEditTask] = useState<Task | null>(null);
-  const [defaultDate, setDefaultDate] = useState<string>(todayISO);
-  const [toastMsg, setToastMsg] = useState('');
+  const [defaultDate, setDefaultDate] = useState<string>(getTodayISO);
+  const [toast, setToast] = useState<{ msg: string; id: number } | null>(null);
   const [toastShow, setToastShow] = useState(false);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   // Calendar state
-  const [calYear, setCalYear] = useState(new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(new Date().getMonth());
-  const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [selectedDate, setSelectedDate] = useState(getTodayISO);
   const [isDBMode, setIsDBMode] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   // ── Toast helper ──────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
+    setToast({ msg, id: Date.now() });
     setToastShow(true);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastShow(false), 2600);
   }, []);
+
+  // 새 토스트가 뜰 때마다 2.6초 뒤 자동으로 숨김
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToastShow(false), 2600);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   // ── Load tasks ────────────────────────────────────────────────
-  const loadTasks = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tasks');
-      if (!res.ok) throw new Error('API error');
-      const data: Task[] = await res.json();
-      if (data.length === 0) {
-        // Seed demo data on first load
-        await Promise.all(
-          DEMO_TASKS.map((t) =>
-            fetch('/api/tasks', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(t),
-            })
-          )
-        );
-        const seeded = await fetch('/api/tasks').then((r) => r.json());
-        setTasks(seeded);
-      } else {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api<Task[]>('/api/tasks');
+        if (cancelled) return;
         setTasks(data);
+        setIsDBMode(true);
+        setDbError(null);
+      } catch (e) {
+        if (cancelled) return;
+        // DB에 연결할 수 없으면 이 브라우저에 저장하는 데모 모드로 동작
+        setTasks(loadDemoTasks() ?? withDemoIds(makeDemoTasks()));
+        setIsDBMode(false);
+        setDbError(errorMessage(e, '서버에 연결할 수 없습니다.'));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setIsDBMode(true);
-    } catch {
-      // Fallback to demo data with fake IDs
-      setTasks(DEMO_TASKS.map((t, i) => ({ ...t, _id: `demo-${i}` } as Task)));
-      setIsDBMode(false);
-    } finally {
-      setLoading(false);
-    }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
+  // 데모 모드에서는 변경 사항을 localStorage에 저장 (새로고침해도 유지)
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    if (!loading && !isDBMode) saveDemoTasks(tasks);
+  }, [tasks, loading, isDBMode]);
 
   // ── CRUD ──────────────────────────────────────────────────────
+  const replaceTask = (task: Task) =>
+    setTasks((prev) => prev.map((t) => (t._id === task._id ? task : t)));
+
   const handleSaveTask = async (data: TaskFormData) => {
+    if (saving) return;
     if (isDBMode) {
+      setSaving(true);
       try {
         if (editTask) {
-          const res = await fetch(`/api/tasks/${editTask._id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          });
-          const updated = await res.json();
-          setTasks((prev) => prev.map((t) => (t._id === editTask._id ? updated : t)));
+          replaceTask(await api<Task>(`/api/tasks/${editTask._id}`, { method: 'PUT', body: data }));
           showToast('일정을 수정했어요.');
         } else {
-          const res = await fetch('/api/tasks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          });
-          const created = await res.json();
+          const created = await api<Task>('/api/tasks', { method: 'POST', body: data });
           setTasks((prev) => [...prev, created]);
           showToast('새 일정을 추가했어요.');
         }
-      } catch {
-        showToast('저장에 실패했습니다. 다시 시도해 주세요.');
+      } catch (e) {
+        // 실패하면 모달을 닫지 않아 입력한 내용을 잃지 않도록 함
+        showToast(errorMessage(e, '저장에 실패했습니다. 다시 시도해 주세요.'));
+        return;
+      } finally {
+        setSaving(false);
       }
+    } else if (editTask) {
+      replaceTask({ ...editTask, ...data });
+      showToast('일정을 수정했어요. (데모 모드)');
     } else {
-      // Demo mode
-      if (editTask) {
-        setTasks((prev) => prev.map((t) => (t._id === editTask._id ? { ...t, ...data } : t)));
-        showToast('일정을 수정했어요. (데모 모드)');
-      } else {
-        const fake: Task = { _id: `demo-${Date.now()}`, ...data };
-        setTasks((prev) => [...prev, fake]);
-        showToast('새 일정을 추가했어요. (데모 모드)');
-      }
+      setTasks((prev) => [...prev, { _id: `demo-${Date.now()}`, ...data }]);
+      showToast('새 일정을 추가했어요. (데모 모드)');
     }
     setModalOpen(false);
     setEditTask(null);
   };
 
-  const handleToggle = async (task: Task) => {
-    const newStatus: TaskStatus = task.status === 'done' ? 'todo' : 'done';
-    const updated = {
-      ...task,
-      status: newStatus,
-      completed_at: newStatus === 'done' ? todayISO : null,
-    };
-    setTasks((prev) => prev.map((t) => (t._id === task._id ? updated : t)));
-    showToast(newStatus === 'done' ? '과제를 완료했어요! 🎉' : '완료 상태를 해제했어요.');
-    if (isDBMode) {
-      await fetch(`/api/tasks/${task._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, completed_at: updated.completed_at }),
-      }).catch(() => showToast('상태 업데이트에 실패했습니다.'));
+  // 화면을 먼저 바꾸고(낙관적 업데이트) 서버 저장이 실패하면 원래대로 되돌린다
+  const updateStatus = async (task: Task, newStatus: TaskStatus, successMsg?: string, completedAt?: string) => {
+    const completed_at = newStatus === 'done' ? (completedAt ?? task.completed_at ?? getTodayISO()) : null;
+    replaceTask({ ...task, status: newStatus, completed_at });
+    if (successMsg) showToast(successMsg);
+    if (!isDBMode) return;
+    try {
+      await api(`/api/tasks/${task._id}`, { method: 'PUT', body: { status: newStatus, completed_at } });
+    } catch (e) {
+      replaceTask(task);
+      showToast(errorMessage(e, '상태 업데이트에 실패했습니다.'));
     }
   };
 
-  const handleStatusChange = async (task: Task, newStatus: TaskStatus) => {
-    const updated = {
-      ...task,
-      status: newStatus,
-      completed_at: newStatus === 'done' ? (task.completed_at ?? todayISO) : null,
-    };
-    setTasks((prev) => prev.map((t) => (t._id === task._id ? updated : t)));
-    if (isDBMode) {
-      await fetch(`/api/tasks/${task._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus, completed_at: updated.completed_at }),
-      }).catch(() => {});
-    }
+  const handleToggle = (task: Task) => {
+    const newStatus: TaskStatus = task.status === 'done' ? 'todo' : 'done';
+    updateStatus(
+      task,
+      newStatus,
+      newStatus === 'done' ? '과제를 완료했어요! 🎉' : '완료 상태를 해제했어요.',
+      getTodayISO()
+    );
   };
 
   const handleDelete = async (task: Task) => {
     if (!confirm(`"${task.title}"를 삭제할까요?`)) return;
     setTasks((prev) => prev.filter((t) => t._id !== task._id));
     showToast('일정을 삭제했어요.');
-    if (isDBMode) {
-      await fetch(`/api/tasks/${task._id}`, { method: 'DELETE' }).catch(() => {});
+    if (!isDBMode) return;
+    try {
+      await api(`/api/tasks/${task._id}`, { method: 'DELETE' });
+    } catch (e) {
+      setTasks((prev) => [...prev, task]);
+      showToast(errorMessage(e, '삭제에 실패했습니다.'));
     }
+  };
+
+  const handleLoadSamples = async () => {
+    if (tasks.length && !confirm('현재 일정에 예시 데이터 8개를 추가할까요?')) return;
+    const samples = makeDemoTasks();
+    if (!isDBMode) {
+      setTasks((prev) => [...prev, ...withDemoIds(samples)]);
+      showToast('예시 데이터를 추가했어요.');
+      return;
+    }
+    try {
+      const created = await api<Task[]>('/api/tasks', { method: 'POST', body: samples });
+      setTasks((prev) => [...prev, ...created]);
+      showToast('예시 데이터를 추가했어요.');
+    } catch (e) {
+      showToast(errorMessage(e, '예시 데이터를 추가하지 못했습니다.'));
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!tasks.length) return showToast('삭제할 일정이 없어요.');
+    if (!confirm(`등록된 일정 ${tasks.length}개를 모두 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) return;
+    if (isDBMode) {
+      try {
+        await api('/api/tasks', { method: 'DELETE' });
+      } catch (e) {
+        return showToast(errorMessage(e, '삭제에 실패했습니다.'));
+      }
+    }
+    setTasks([]);
+    showToast('모든 일정을 삭제했어요.');
+  };
+
+  const handleExportCSV = () => {
+    const header = ['title', 'subject', 'kind', 'due_date', 'estimated_minutes', 'status', 'priority', 'notes'] as const;
+    const rows = [header as readonly string[], ...tasks.map((t) => header.map((k) => String(t[k] ?? '')))];
+    const csv = '﻿' + rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `classmate_tasks_${getTodayISO()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('CSV 파일을 내보냈어요.');
   };
 
   const openAdd = (date?: string) => {
     setEditTask(null);
-    setDefaultDate(date ?? todayISO);
+    setDefaultDate(date ?? getTodayISO());
     setModalOpen(true);
   };
 
@@ -219,14 +263,26 @@ export default function ClassMateApp() {
     setModalOpen(true);
   };
 
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditTask(null);
+  }, []);
+
   // ── Derived data ──────────────────────────────────────────────
+  const todayISO = getTodayISO();
   const completed = tasks.filter((t) => t.status === 'done').length;
   const totalPercent = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+  const overdueCount = tasks.filter(isOverdue).length;
+
+  // 알림: 기한이 지났거나 3일 이내에 마감되는 미완료 일정
+  const alerts = tasks
+    .filter((t) => t.status !== 'done' && dayDiff(t.due_date) <= 2)
+    .sort((a, b) => a.due_date.localeCompare(b.due_date));
 
   const filteredTasks = tasks
     .filter((t) => {
       const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-      const q = searchTerm.toLowerCase();
+      const q = searchTerm.trim().toLowerCase();
       const matchSearch =
         !q ||
         t.title.toLowerCase().includes(q) ||
@@ -237,40 +293,29 @@ export default function ClassMateApp() {
     })
     .sort((a, b) => a.due_date.localeCompare(b.due_date));
 
-  // Week bars helper
+  // 최근 7일 막대 그래프 데이터
   const weekBars = (completedOnly = false) => {
     const days: { label: string; count: number; iso: string }[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      const iso = d.toISOString().slice(0, 10);
+      const iso = toLocalISO(d);
       const count = tasks.filter((t) =>
-        completedOnly
-          ? t.status === 'done' && t.completed_at === iso
-          : t.due_date === iso
+        completedOnly ? t.status === 'done' && t.completed_at === iso : t.due_date === iso
       ).length;
       days.push({ label: d.toLocaleDateString('ko-KR', { weekday: 'short' }), count, iso });
     }
-    const max = Math.max(1, ...days.map((d) => d.count));
     return days;
   };
 
   // ── Calendar helpers ─────────────────────────────────────────
   const calDays = (() => {
-    const first = new Date(calYear, calMonth, 1);
-    const startDay = first.getDay();
-    const start = new Date(calYear, calMonth, 1 - startDay);
+    const startDay = new Date(calYear, calMonth, 1).getDay();
     const cells: { iso: string; day: number; isCurrentMonth: boolean; isToday: boolean }[] = [];
     for (let i = 0; i < 42; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      const iso = d.toISOString().slice(0, 10);
-      cells.push({
-        iso,
-        day: d.getDate(),
-        isCurrentMonth: d.getMonth() === calMonth,
-        isToday: iso === todayISO,
-      });
+      const d = new Date(calYear, calMonth, 1 - startDay + i);
+      const iso = toLocalISO(d);
+      cells.push({ iso, day: d.getDate(), isCurrentMonth: d.getMonth() === calMonth, isToday: iso === todayISO });
     }
     return cells;
   })();
@@ -287,33 +332,61 @@ export default function ClassMateApp() {
 
   const navigate = (page: Page) => {
     setActivePage(page);
+    setNotifOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const renderStatCards = (cards: { label: string; value: string | number; foot: string; icon: string; color: string }[]) => (
+    <div className="stats-grid">
+      {cards.map(({ label, value, foot, icon, color }) => (
+        <div className="stat-card" key={label}>
+          <div className="stat-head">
+            <span>{label}</span>
+            <span className={`stat-ico ${color}`}>{icon}</span>
+          </div>
+          <div className="stat-value">{value}</div>
+          <div className="stat-foot">{foot}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderWeekChart = (bars: ReturnType<typeof weekBars>, suffix: string) => {
+    const max = Math.max(1, ...bars.map((b) => b.count));
+    return (
+      <div className="week-chart">
+        {bars.map((b, i) => (
+          <div key={b.iso} className="bar-col">
+            <div
+              className={`bar ${i === 6 ? 'today-bar' : ''}`}
+              style={{ height: `${Math.max(4, (b.count / max) * 88)}%` }}
+              title={`${b.iso}: ${b.count}개${suffix}`}
+            />
+            <div className="bar-label">{b.label}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   // ── Dashboard Page ────────────────────────────────────────────
-  const DashboardPage = () => {
-    const upcoming = [...tasks]
+  const renderDashboard = () => {
+    const pending = tasks
       .filter((t) => t.status !== 'done')
-      .sort((a, b) => a.due_date.localeCompare(b.due_date))
-      .slice(0, 4);
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    const upcoming = pending.slice(0, 4);
+    // 과제를 제외한 시험·수행평가·행사·개인 일정 중 오늘 이후 일정
+    const events = pending.filter((t) => t.kind !== '과제' && t.due_date >= todayISO).slice(0, 3);
 
-    const overdue = tasks.filter(isOverdue).length;
-    const imminent = tasks.filter(
-      (t) => t.status !== 'done' && dayDiff(t.due_date) >= 0 && dayDiff(t.due_date) <= 2
-    ).length;
+    const imminent = pending.filter((t) => dayDiff(t.due_date) >= 0 && dayDiff(t.due_date) <= 2).length;
 
-    // Week progress
+    // 이번 주(월~일) 진행률
     const weekday = (new Date().getDay() + 6) % 7;
-    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekday);
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
-    const wsISO = weekStart.toISOString().slice(0, 10);
-    const weISO = weekEnd.toISOString().slice(0, 10);
+    const wsISO = offsetDate(-weekday);
+    const weISO = offsetDate(6 - weekday);
     const weekTasks = tasks.filter((t) => t.due_date >= wsISO && t.due_date <= weISO);
     const weekDone = weekTasks.filter((t) => t.status === 'done').length;
     const weekPct = weekTasks.length ? Math.round((weekDone / weekTasks.length) * 100) : 0;
-
-    const bars = weekBars(false);
-    const barsMax = Math.max(1, ...bars.map((b) => b.count));
 
     const tipIndex = new Date().getDate() % TIPS.length;
 
@@ -329,24 +402,12 @@ export default function ClassMateApp() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="stats-grid">
-          {[
-            { label: '전체 과제', value: tasks.length, foot: '등록한 일정 전체', icon: '📋', color: 'blue' },
-            { label: '진행 중', value: tasks.filter((t) => t.status === 'doing').length, foot: '현재 집중하고 있어요', icon: '⏳', color: 'teal' },
-            { label: '마감 임박', value: imminent, foot: `오늘부터 3일 이내 (기한 초과 ${overdue}개)`, icon: '⚡', color: 'amber' },
-            { label: '완료율', value: `${totalPercent}%`, foot: `${completed}개 완료`, icon: '✅', color: 'red' },
-          ].map(({ label, value, foot, icon, color }) => (
-            <div className="stat-card" key={label}>
-              <div className="stat-head">
-                <span>{label}</span>
-                <span className={`stat-ico ${color}`}>{icon}</span>
-              </div>
-              <div className="stat-value">{value}</div>
-              <div className="stat-foot">{foot}</div>
-            </div>
-          ))}
-        </div>
+        {renderStatCards([
+          { label: '전체 과제', value: tasks.length, foot: '등록한 일정 전체', icon: '📋', color: 'blue' },
+          { label: '진행 중', value: tasks.filter((t) => t.status === 'doing').length, foot: '현재 집중하고 있어요', icon: '⏳', color: 'teal' },
+          { label: '마감 임박', value: imminent, foot: `오늘부터 3일 이내 (기한 초과 ${overdueCount}개)`, icon: '⚡', color: 'amber' },
+          { label: '완료율', value: `${totalPercent}%`, foot: `${completed}개 완료`, icon: '✅', color: 'red' },
+        ])}
 
         <div className="content-grid">
           {/* Upcoming tasks */}
@@ -359,11 +420,20 @@ export default function ClassMateApp() {
               <button className="text-btn" onClick={() => navigate('tasks')}>전체 보기 →</button>
             </div>
             <div className="task-list">
-              {upcoming.length === 0 ? (
+              {tasks.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">📝</div>
+                  아직 등록된 일정이 없어요.
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+                    <button className="btn-primary" onClick={() => openAdd()}>＋ 첫 일정 추가</button>
+                    <button className="btn-secondary" onClick={handleLoadSamples}>예시 데이터 불러오기</button>
+                  </div>
+                </div>
+              ) : upcoming.length === 0 ? (
                 <div className="empty-state"><div className="empty-icon">🎉</div>남은 과제가 없어요. 멋져요!</div>
               ) : (
                 upcoming.map((t) => (
-                  <TaskRow key={t._id} task={t} onToggle={handleToggle} showDate />
+                  <TaskRow key={t._id} task={t} onToggle={handleToggle} onOpen={openEdit} showDate />
                 ))
               )}
             </div>
@@ -374,31 +444,20 @@ export default function ClassMateApp() {
             <div className="card-header">
               <div>
                 <h3>이번 주 진행률</h3>
-                <p>이번 주 과제 완료 현황</p>
+                <p>이번 주 마감 과제 완료 현황</p>
               </div>
               <span className="tag blue">주간 리포트</span>
             </div>
             <div className="progress-area">
               <div className="progress-top">
-                <span style={{ color: 'var(--muted)' }}>완료한 과제</span>
+                <span style={{ color: 'var(--muted)' }}>완료한 과제 {weekDone}/{weekTasks.length}</span>
                 <strong>{weekPct}%</strong>
               </div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${weekPct}%` }} />
               </div>
             </div>
-            <div className="week-chart">
-              {bars.map((b, i) => (
-                <div key={b.iso} className="bar-col">
-                  <div
-                    className={`bar ${i === 6 ? 'today-bar' : ''}`}
-                    style={{ height: `${Math.max(4, (b.count / barsMax) * 88)}%` }}
-                    title={`${b.iso}: ${b.count}개`}
-                  />
-                  <div className="bar-label">{b.label}</div>
-                </div>
-              ))}
-            </div>
+            {renderWeekChart(weekBars(false), ' 마감')}
           </div>
         </div>
 
@@ -408,29 +467,26 @@ export default function ClassMateApp() {
             <div className="card-header">
               <div>
                 <h3>곧 다가오는 일정</h3>
-                <p>놓치지 않도록 미리 확인해요.</p>
+                <p>시험·수행평가·행사를 미리 확인해요.</p>
               </div>
               <button className="text-btn" onClick={() => navigate('calendar')}>달력 보기 →</button>
             </div>
             <div className="task-list">
-              {tasks.filter((t) => t.status !== 'done').slice(0, 3).length === 0 ? (
+              {events.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>다가오는 일정이 없습니다.</div>
               ) : (
-                [...tasks].filter((t) => t.status !== 'done')
-                  .sort((a, b) => a.due_date.localeCompare(b.due_date))
-                  .slice(0, 3)
-                  .map((t) => (
-                    <div key={t._id} className="task-row">
-                      <div className={`stat-ico ${KIND_COLOR[t.kind]}`} style={{ width: 34, height: 34, flexShrink: 0, fontSize: 14 }}>
-                        {t.kind === '시험' ? '✎' : t.kind === '수행평가' ? '◆' : '📋'}
-                      </div>
-                      <div className="task-main">
-                        <div className="task-title">{t.title}</div>
-                        <div className="task-meta">{t.subject} · {fmtDate(t.due_date, { month: 'long', day: 'numeric' })}</div>
-                      </div>
-                      <span className={`tag ${isOverdue(t) ? 'red' : KIND_COLOR[t.kind]}`}>{isOverdue(t) ? '기한 지남' : dueText(t)}</span>
+                events.map((t) => (
+                  <button key={t._id} className="task-row task-row-btn" onClick={() => openEdit(t)}>
+                    <div className={`stat-ico ${KIND_COLOR[t.kind]}`} style={{ width: 34, height: 34, flexShrink: 0, fontSize: 14 }}>
+                      {t.kind === '시험' ? '✎' : t.kind === '수행평가' ? '◆' : '📋'}
                     </div>
-                  ))
+                    <div className="task-main">
+                      <div className="task-title">{t.title}</div>
+                      <div className="task-meta">{t.subject} · {t.kind} · {fmtDate(t.due_date, { month: 'long', day: 'numeric' })}</div>
+                    </div>
+                    <span className={`tag ${KIND_COLOR[t.kind]}`}>{dueText(t)}</span>
+                  </button>
+                ))
               )}
             </div>
           </div>
@@ -465,18 +521,21 @@ export default function ClassMateApp() {
   };
 
   // ── Calendar Page ─────────────────────────────────────────────
-  const CalendarPage = () => {
+  const renderCalendar = () => {
     const selectedTasks = tasks
       .filter((t) => t.due_date === selectedDate)
       .sort((a, b) => a.title.localeCompare(b.title));
 
-    const prevMonth = () => {
-      if (calMonth === 0) { setCalYear(calYear - 1); setCalMonth(11); }
-      else setCalMonth(calMonth - 1);
+    const moveMonth = (delta: number) => {
+      const d = new Date(calYear, calMonth + delta, 1);
+      setCalYear(d.getFullYear());
+      setCalMonth(d.getMonth());
     };
-    const nextMonth = () => {
-      if (calMonth === 11) { setCalYear(calYear + 1); setCalMonth(0); }
-      else setCalMonth(calMonth + 1);
+    const goToday = () => {
+      const now = new Date();
+      setCalYear(now.getFullYear());
+      setCalMonth(now.getMonth());
+      setSelectedDate(todayISO);
     };
 
     return (
@@ -497,9 +556,10 @@ export default function ClassMateApp() {
                 <p>색상으로 일정 유형을 구분해요.</p>
               </div>
               <div className="calendar-controls">
-                <button className="cal-nav-btn" onClick={prevMonth} aria-label="이전 달"><ChevronLeft size={16} /></button>
-                <h3 style={{ minWidth: 120, textAlign: 'center' }}>{calYear}년 {calMonth + 1}월</h3>
-                <button className="cal-nav-btn" onClick={nextMonth} aria-label="다음 달"><ChevronRight size={16} /></button>
+                <button className="cal-nav-btn" onClick={() => moveMonth(-1)} aria-label="이전 달"><ChevronLeft size={16} /></button>
+                <h3 style={{ minWidth: 110, textAlign: 'center' }}>{calYear}년 {calMonth + 1}월</h3>
+                <button className="cal-nav-btn" onClick={() => moveMonth(1)} aria-label="다음 달"><ChevronRight size={16} /></button>
+                <button className="text-btn" onClick={goToday}>오늘</button>
               </div>
             </div>
 
@@ -514,6 +574,7 @@ export default function ClassMateApp() {
                     key={iso}
                     className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''} ${iso === selectedDate ? 'selected' : ''}`}
                     onClick={() => setSelectedDate(iso)}
+                    onDoubleClick={() => openAdd(iso)}
                     aria-label={`${iso}, 일정 ${dayTasks.length}개`}
                   >
                     <span className="day-num">{day}</span>
@@ -539,14 +600,14 @@ export default function ClassMateApp() {
               <button className="text-btn" onClick={() => openAdd(selectedDate)}>＋ 추가</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+              {fmtDate(selectedDate, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
             </div>
             <div className="task-list">
               {selectedTasks.length === 0 ? (
                 <div className="empty-state"><div className="empty-icon">☀️</div>이 날짜에는 등록된 일정이 없어요.</div>
               ) : (
                 selectedTasks.map((t) => (
-                  <TaskRow key={t._id} task={t} onToggle={handleToggle} showDate={false} />
+                  <TaskRow key={t._id} task={t} onToggle={handleToggle} onOpen={openEdit} showDate={false} />
                 ))
               )}
             </div>
@@ -557,7 +618,7 @@ export default function ClassMateApp() {
   };
 
   // ── Tasks Page ────────────────────────────────────────────────
-  const TasksPage = () => (
+  const renderTasks = () => (
     <section className="page-section">
       <div className="welcome-row">
         <div>
@@ -583,7 +644,7 @@ export default function ClassMateApp() {
           className="btn-secondary"
           onClick={() => { setSearchTerm(''); setStatusFilter('all'); }}
         >
-          검색 초기화 ↺
+          {searchTerm ? `"${searchTerm}" 검색 초기화 ↺` : '검색 초기화 ↺'}
         </button>
       </div>
 
@@ -615,7 +676,9 @@ export default function ClassMateApp() {
                     <td>
                       <div className="task-name">{t.title}</div>
                       <div className="task-meta" style={{ marginTop: 4 }}>
-                        {t.kind}{t.priority === 'high' && <span className="tag red" style={{ marginLeft: 6 }}>중요</span>}
+                        {t.kind}
+                        {t.priority === 'high' && <span className="tag red" style={{ marginLeft: 6 }}>중요</span>}
+                        <span className="mobile-only" style={{ marginLeft: 6 }}>· {dueText(t)}</span>
                       </div>
                     </td>
                     <td>
@@ -634,7 +697,7 @@ export default function ClassMateApp() {
                         className="status-select"
                         value={t.status}
                         aria-label={`${t.title} 상태`}
-                        onChange={(e) => handleStatusChange(t, e.target.value as TaskStatus)}
+                        onChange={(e) => updateStatus(t, e.target.value as TaskStatus)}
                       >
                         <option value="todo">대기 중</option>
                         <option value="doing">진행 중</option>
@@ -662,12 +725,22 @@ export default function ClassMateApp() {
   );
 
   // ── Stats Page ────────────────────────────────────────────────
-  const StatsPage = () => {
-    const overdue = tasks.filter(isOverdue).length;
-    const totalMin = tasks.filter((t) => t.status !== 'done').reduce((s, t) => s + (t.estimated_minutes || 0), 0);
+  const renderStats = () => {
+    const pending = tasks.filter((t) => t.status !== 'done');
+    const totalMin = pending.reduce((s, t) => s + (t.estimated_minutes || 0), 0);
+    const highPending = pending.filter((t) => t.priority === 'high').length;
     const subjects = [...new Set(tasks.map((t) => t.subject))];
-    const bars = weekBars(true);
-    const barsMax = Math.max(1, ...bars.map((b) => b.count));
+
+    // 저장된 데이터를 바탕으로 계산한 학습 습관 분석
+    const insights: string[] = [];
+    if (overdueCount) insights.push(`기한이 지난 미완료 일정이 ${overdueCount}개 있어요. 새로운 계획을 세우기 전에 마감일을 확인해 보세요.`);
+    if (highPending) insights.push(`중요 표시가 있는 미완료 과제가 ${highPending}개 있어요. 오늘 할 일에 포함할지 확인해 보세요.`);
+    if (!overdueCount && !highPending) insights.push('현재 우선 확인이 필요한 일정이 많지 않아요. 다음 주 일정을 미리 살펴보세요.');
+    const busiest = subjects
+      .map((s) => ({ s, n: pending.filter((t) => t.subject === s).length }))
+      .sort((a, b) => b.n - a.n)[0];
+    if (busiest && busiest.n >= 2) insights.push(`남은 과제가 가장 많은 과목은 ${busiest.s}(${busiest.n}개)이에요. 조금씩 나눠서 진행해 보세요.`);
+    insights.push(`예상 소요 시간을 입력한 미완료 과제의 합계는 약 ${Math.round((totalMin / 60) * 10) / 10}시간입니다.`);
 
     return (
       <section className="page-section">
@@ -679,20 +752,12 @@ export default function ClassMateApp() {
           <div className="date-pill">📈 누적 기록</div>
         </div>
 
-        <div className="stats-grid">
-          {[
-            { label: '전체 일정', value: tasks.length, foot: '등록된 모든 일정', icon: '📋', color: 'blue' },
-            { label: '완료 과제', value: completed, foot: `전체의 ${totalPercent}%`, icon: '✅', color: 'teal' },
-            { label: '기한 경과', value: overdue, foot: '확인 후 일정 조정', icon: '⚡', color: 'red' },
-            { label: '예상 남은 시간', value: `${Math.round(totalMin / 60 * 10) / 10}h`, foot: '미완료 과제 기준', icon: '⏰', color: 'amber' },
-          ].map(({ label, value, foot, icon, color }) => (
-            <div className="stat-card" key={label}>
-              <div className="stat-head"><span>{label}</span><span className={`stat-ico ${color}`}>{icon}</span></div>
-              <div className="stat-value">{value}</div>
-              <div className="stat-foot">{foot}</div>
-            </div>
-          ))}
-        </div>
+        {renderStatCards([
+          { label: '전체 일정', value: tasks.length, foot: '등록된 모든 일정', icon: '📋', color: 'blue' },
+          { label: '완료 과제', value: completed, foot: `전체의 ${totalPercent}%`, icon: '✅', color: 'teal' },
+          { label: '기한 경과', value: overdueCount, foot: '확인 후 일정 조정', icon: '⚡', color: 'red' },
+          { label: '예상 남은 시간', value: `${Math.round((totalMin / 60) * 10) / 10}h`, foot: '미완료 과제 기준', icon: '⏰', color: 'amber' },
+        ])}
 
         <div className="chart-grid">
           {/* Subject bars */}
@@ -716,7 +781,7 @@ export default function ClassMateApp() {
                       <div className="subject-track">
                         <div
                           className="subject-fill"
-                          style={{ width: `${ts.length ? (done / ts.length) * 100 : 0}%`, background: SUBJECT_COLORS[s as keyof typeof SUBJECT_COLORS] ?? '#536dfe' }}
+                          style={{ width: `${ts.length ? (done / ts.length) * 100 : 0}%`, background: SUBJECT_COLORS[s] }}
                         />
                       </div>
                       <span className="subject-count">{done}/{ts.length}</span>
@@ -735,26 +800,37 @@ export default function ClassMateApp() {
                 <p>날짜별로 완료 처리한 과제 수</p>
               </div>
             </div>
-            <div className="week-chart">
-              {bars.map((b, i) => (
-                <div key={b.iso} className="bar-col">
-                  <div
-                    className={`bar ${i === 6 ? 'today-bar' : ''}`}
-                    style={{ height: `${Math.max(4, (b.count / barsMax) * 88)}%` }}
-                    title={`${b.iso}: ${b.count}개 완료`}
-                  />
-                  <div className="bar-label">{b.label}</div>
-                </div>
-              ))}
-            </div>
+            {renderWeekChart(weekBars(true), ' 완료')}
             <div className="insight-box">
               <strong>이번 주 돌아보기</strong>
               <p>
                 {tasks.length
-                  ? `현재 ${tasks.length}개 일정 중 ${completed}개를 완료했어요. ${overdue ? `기한이 지난 미완료 일정 ${overdue}개를 먼저 확인해 보세요.` : '기한이 지난 미완료 일정은 없어요. 좋아요!'}`
+                  ? `현재 ${tasks.length}개 일정 중 ${completed}개를 완료했어요. ${overdueCount ? `기한이 지난 미완료 일정 ${overdueCount}개를 먼저 확인해 보세요.` : '기한이 지난 미완료 일정은 없어요. 좋아요!'}`
                   : '과제를 등록하면 나의 진행 상황을 분석할 수 있어요.'}
               </p>
             </div>
+          </div>
+        </div>
+
+        <div className="card card-body" style={{ marginTop: 18 }}>
+          <div className="card-header">
+            <div>
+              <h3>데이터로 확인하는 나의 습관</h3>
+              <p>현재 저장된 과제 정보를 바탕으로 계산한 내용입니다.</p>
+            </div>
+            <span className="tag green">자동 계산</span>
+          </div>
+          <div className="task-list">
+            {insights.map((text, i) => (
+              <div key={i} className="task-row">
+                <div className={`stat-ico ${i === 0 ? 'blue' : 'teal'}`} style={{ width: 34, height: 34, flexShrink: 0, fontSize: 14 }}>
+                  {i === 0 ? '💡' : '✓'}
+                </div>
+                <div className="task-main">
+                  <div className="task-title" style={{ whiteSpace: 'normal', fontWeight: 600 }}>{text}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -762,7 +838,7 @@ export default function ClassMateApp() {
   };
 
   // ── Settings Page ─────────────────────────────────────────────
-  const SettingsPage = () => (
+  const renderSettings = () => (
     <section className="page-section">
       <div className="welcome-row">
         <div>
@@ -770,7 +846,7 @@ export default function ClassMateApp() {
           <p>ClassMate 앱의 연결 상태와 데이터를 관리합니다.</p>
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
+      <div className="settings-grid">
         <div className="card card-body">
           <div className="card-header">
             <div>
@@ -780,11 +856,18 @@ export default function ClassMateApp() {
           </div>
           <div>
             {[
-              { label: 'MongoDB Atlas', desc: isDBMode ? '연결됨 — 데이터가 클라우드에 저장됩니다.' : 'MONGODB_URI가 설정되지 않아 데모 모드로 동작합니다.', tag: isDBMode ? 'green' : 'orange', tagText: isDBMode ? '연결됨' : '데모 모드' },
+              {
+                label: 'MongoDB Atlas',
+                desc: isDBMode
+                  ? '연결됨 — 데이터가 클라우드에 저장됩니다.'
+                  : `데모 모드 — 데이터가 이 브라우저에만 저장됩니다. (${dbError ?? 'DB 미연결'})`,
+                tag: isDBMode ? 'green' : 'orange',
+                tagText: isDBMode ? '연결됨' : '데모 모드',
+              },
+              { label: '기기별 데이터', desc: '로그인 없이 이 브라우저마다 별도의 일정 목록을 사용합니다.', tag: 'blue', tagText: '익명 저장' },
               { label: '반응형 디자인', desc: '모바일 우선 반응형 레이아웃을 지원합니다.', tag: 'green', tagText: '지원' },
-              { label: 'Vercel 배포', desc: 'GitHub와 연결하면 Vercel에서 자동 배포됩니다.', tag: 'blue', tagText: '준비됨' },
             ].map(({ label, desc, tag, tagText }) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #f0f2f7' }}>
+              <div key={label} className="setting-row">
                 <div>
                   <strong style={{ fontSize: 13 }}>{label}</strong>
                   <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{desc}</p>
@@ -802,30 +885,25 @@ export default function ClassMateApp() {
             </div>
           </div>
           <div style={{ display: 'grid', gap: '10px' }}>
-            <button
-              className="btn-secondary"
-              style={{ textAlign: 'left', padding: '13px' }}
-              onClick={() => {
-                const header = ['title', 'subject', 'kind', 'due_date', 'estimated_minutes', 'status', 'priority', 'notes'];
-                const rows = [header, ...tasks.map((t) => header.map((k) => String(t[k as keyof Task] ?? '')))];
-                const csv = '\ufeff' + rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\r\n');
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = 'classmate_tasks.csv'; a.click();
-                URL.revokeObjectURL(url);
-                showToast('CSV 파일을 내보냈어요.');
-              }}
-            >
+            <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleExportCSV}>
               ↓ 과제 목록 CSV 내보내기
             </button>
+            <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleLoadSamples}>
+              ✦ 예시 데이터 불러오기
+            </button>
+            <button className="btn-secondary danger-btn" style={{ textAlign: 'left', padding: '13px' }} onClick={handleDeleteAll}>
+              🗑 모든 일정 삭제
+            </button>
           </div>
-          <div className="insight-box">
-            <strong>MongoDB 연결 방법</strong>
-            <p>
-              <code>.env.local</code> 파일에 <code>MONGODB_URI</code>를 설정하면 클라우드 DB와 연결됩니다.<br /><br />
-              MongoDB Atlas에서 무료 클러스터를 생성한 후 연결 문자열을 복사해 붙여넣으세요.
-            </p>
-          </div>
+          {!isDBMode && (
+            <div className="insight-box">
+              <strong>MongoDB 연결 방법</strong>
+              <p>
+                로컬 개발: 프로젝트 폴더의 <code>.env.local</code> 파일에 <code>MONGODB_URI</code>를 입력하세요.<br />
+                Vercel 배포: 프로젝트 → Settings → Environment Variables에 <code>MONGODB_URI</code>를 추가한 뒤 다시 배포하세요.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -859,14 +937,51 @@ export default function ClassMateApp() {
                 <input
                   placeholder="과제나 과목 검색"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    // 검색 결과는 과제 관리 화면에서 보여준다
+                    if (activePage !== 'tasks') setActivePage('tasks');
+                  }}
                   aria-label="검색어 입력"
                 />
               </label>
-              <button className="btn-icon" aria-label="알림" title="알림 (준비 중)">
-                <Bell size={17} />
-                <span className="notification-dot" />
-              </button>
+              <div className="notif-wrap">
+                <button
+                  className="btn-icon"
+                  aria-label={`알림 ${alerts.length}개`}
+                  aria-expanded={notifOpen}
+                  onClick={() => setNotifOpen((v) => !v)}
+                >
+                  <Bell size={17} />
+                  {alerts.length > 0 && <span className="notification-dot" />}
+                </button>
+                {notifOpen && (
+                  <>
+                    <div className="notif-overlay" onClick={() => setNotifOpen(false)} />
+                    <div className="notif-panel" role="dialog" aria-label="마감 알림">
+                      <div className="notif-head">
+                        <strong>마감 알림</strong>
+                        <span>{alerts.length}개</span>
+                      </div>
+                      {alerts.length === 0 ? (
+                        <div className="notif-empty">3일 이내에 마감되는 일정이 없어요. 🙌</div>
+                      ) : (
+                        alerts.slice(0, 8).map((t) => (
+                          <button
+                            key={t._id}
+                            className="notif-item"
+                            onClick={() => { setNotifOpen(false); openEdit(t); }}
+                          >
+                            <span className="subject-dot" style={{ background: SUBJECT_COLORS[t.subject] }} />
+                            <span className="notif-title">{t.title}</span>
+                            <span className={`tag ${isOverdue(t) ? 'red' : 'orange'}`}>{dueText(t)}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
               <button className="btn-primary" id="add-task-btn" onClick={() => openAdd()}>
                 <Plus size={16} />
                 일정 추가
@@ -874,18 +989,27 @@ export default function ClassMateApp() {
             </div>
           </header>
 
+          {!loading && !isDBMode && (
+            <div className="demo-banner" role="note">
+              데모 모드로 실행 중이에요. 데이터는 이 브라우저에만 저장됩니다.
+              <button className="text-btn" onClick={() => navigate('settings')}>자세히 →</button>
+            </div>
+          )}
+
           {/* Page content */}
           {loading ? (
             <div className="spinner" aria-label="로딩 중" />
           ) : (
             <>
-              {activePage === 'dashboard' && <DashboardPage />}
-              {activePage === 'calendar' && <CalendarPage />}
-              {activePage === 'tasks' && <TasksPage />}
-              {activePage === 'stats' && <StatsPage />}
-              {activePage === 'settings' && <SettingsPage />}
+              {activePage === 'dashboard' && renderDashboard()}
+              {activePage === 'calendar' && renderCalendar()}
+              {activePage === 'tasks' && renderTasks()}
+              {activePage === 'stats' && renderStats()}
+              {activePage === 'settings' && renderSettings()}
             </>
           )}
+
+          <div className="footer-note">ClassMate · 학생을 위한 일정·과제 관리</div>
         </main>
       </div>
 
@@ -907,20 +1031,28 @@ export default function ClassMateApp() {
       {/* Task Modal */}
       <TaskModal
         isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); setEditTask(null); }}
+        onClose={closeModal}
         onSave={handleSaveTask}
         editTask={editTask}
         defaultDate={defaultDate}
+        saving={saving}
       />
 
       {/* Toast */}
-      <Toast message={toastMsg} show={toastShow} />
+      <Toast message={toast?.msg ?? ''} show={toastShow} />
     </>
   );
 }
 
 // ─── TaskRow sub-component ────────────────────────────────────
-function TaskRow({ task, onToggle, showDate }: { task: Task; onToggle: (t: Task) => void; showDate: boolean }) {
+function TaskRow({
+  task, onToggle, onOpen, showDate,
+}: {
+  task: Task;
+  onToggle: (t: Task) => void;
+  onOpen: (t: Task) => void;
+  showDate: boolean;
+}) {
   return (
     <div className="task-row">
       <button
@@ -930,7 +1062,7 @@ function TaskRow({ task, onToggle, showDate }: { task: Task; onToggle: (t: Task)
       >
         {task.status === 'done' && <CheckCheck size={12} />}
       </button>
-      <div className="task-main">
+      <button className="task-main task-main-btn" onClick={() => onOpen(task)} aria-label={`${task.title} 수정`}>
         <div className={`task-title ${task.status === 'done' ? 'is-done' : ''}`}>{task.title}</div>
         <div className="task-meta">
           <span>
@@ -941,7 +1073,7 @@ function TaskRow({ task, onToggle, showDate }: { task: Task; onToggle: (t: Task)
           <span>{task.kind}</span>
           {task.priority === 'high' && <span className="tag red">중요</span>}
         </div>
-      </div>
+      </button>
       {showDate && (
         <span className={`task-due ${isOverdue(task) ? 'overdue' : ''}`}>{dueText(task)}</span>
       )}

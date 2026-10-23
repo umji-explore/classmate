@@ -6,6 +6,7 @@ export type TaskKind = '과제' | '수행평가' | '시험' | '학교 행사' | 
 export type TaskSubject = '국어' | '수학' | '영어' | '과학' | '사회' | '정보' | '기타';
 
 export interface ITask {
+  owner: string; // 기기별 익명 사용자 ID (클라이언트가 x-client-id 헤더로 전달)
   title: string;
   subject: TaskSubject;
   kind: TaskKind;
@@ -21,6 +22,7 @@ export interface ITaskDocument extends ITask, Document {}
 
 const TaskSchema = new Schema<ITaskDocument>(
   {
+    owner: { type: String, required: true, index: true },
     title: { type: String, required: true, maxlength: 100, trim: true },
     subject: {
       type: String,
@@ -32,7 +34,7 @@ const TaskSchema = new Schema<ITaskDocument>(
       required: true,
       enum: ['과제', '수행평가', '시험', '학교 행사', '개인 일정'],
     },
-    due_date: { type: String, required: true },
+    due_date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
     estimated_minutes: { type: Number, default: 30, min: 0, max: 1440 },
     status: {
       type: String,
@@ -45,7 +47,7 @@ const TaskSchema = new Schema<ITaskDocument>(
       default: 'normal',
     },
     notes: { type: String, default: '', maxlength: 500 },
-    completed_at: { type: String, default: null },
+    completed_at: { type: String, default: null, match: /^\d{4}-\d{2}-\d{2}$/ },
   },
   {
     timestamps: true,

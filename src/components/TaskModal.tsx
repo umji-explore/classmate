@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { Task, TaskFormData, SUBJECTS, KINDS } from '@/types/task';
+import { getTodayISO } from '@/lib/date';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -10,12 +11,8 @@ interface TaskModalProps {
   onSave: (data: TaskFormData) => void;
   editTask?: Task | null;
   defaultDate?: string;
+  saving?: boolean;
 }
-
-const todayISO = () => {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
-};
 
 export default function TaskModal({
   isOpen,
@@ -23,6 +20,7 @@ export default function TaskModal({
   onSave,
   editTask,
   defaultDate,
+  saving = false,
 }: TaskModalProps) {
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -48,17 +46,22 @@ export default function TaskModal({
     const form = e.currentTarget;
     const fd = new FormData(form);
 
+    const title = (fd.get('title') as string).trim();
+    if (!title) {
+      titleRef.current?.focus();
+      return;
+    }
     const status = fd.get('status') as TaskFormData['status'];
     const data: TaskFormData = {
-      title: (fd.get('title') as string).trim(),
+      title,
       subject: fd.get('subject') as TaskFormData['subject'],
       kind: fd.get('kind') as TaskFormData['kind'],
       due_date: fd.get('due_date') as string,
-      estimated_minutes: Math.max(0, Number(fd.get('estimated_minutes')) || 0),
+      estimated_minutes: Math.min(1440, Math.max(0, Number(fd.get('estimated_minutes')) || 0)),
       status,
       priority: fd.get('priority') as TaskFormData['priority'],
       notes: (fd.get('notes') as string).trim(),
-      completed_at: status === 'done' ? (editTask?.completed_at ?? todayISO()) : null,
+      completed_at: status === 'done' ? (editTask?.completed_at ?? getTodayISO()) : null,
     };
 
     onSave(data);
@@ -129,7 +132,7 @@ export default function TaskModal({
                 name="due_date"
                 type="date"
                 required
-                defaultValue={editTask?.due_date ?? defaultDate ?? todayISO()}
+                defaultValue={editTask?.due_date ?? defaultDate ?? getTodayISO()}
               />
             </div>
 
@@ -183,8 +186,8 @@ export default function TaskModal({
             <button type="button" className="btn-secondary" onClick={onClose}>
               취소
             </button>
-            <button type="submit" className="btn-primary">
-              저장하기
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? '저장 중…' : '저장하기'}
             </button>
           </div>
         </form>

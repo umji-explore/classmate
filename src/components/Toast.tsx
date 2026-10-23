@@ -1,32 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 interface ToastProps {
   message: string;
   show: boolean;
 }
 
+// 항상 렌더링하고 CSS의 .show 클래스로 나타남/사라짐 애니메이션을 처리
 export default function Toast({ message, show }: ToastProps) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (show) {
-      setVisible(true);
-    } else {
-      const t = setTimeout(() => setVisible(false), 300);
-      return () => clearTimeout(t);
-    }
-  }, [show]);
-
-  if (!visible && !show) return null;
-
   return (
-    <div
-      className={`toast ${show ? 'show' : ''}`}
-      role="status"
-      aria-live="polite"
-    >
+    <div className={`toast ${show ? 'show' : ''}`} role="status" aria-live="polite">
       {message}
     </div>
   );
