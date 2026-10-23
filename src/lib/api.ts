@@ -1,13 +1,12 @@
 import mongoose from 'mongoose';
 import { MissingDatabaseUriError } from '@/lib/mongodb';
+import { getSessionUser } from '@/lib/auth';
 import type { ITask } from '@/models/Task';
 
-// 클라이언트가 기기마다 생성해 보내는 익명 사용자 ID (UUID 형식만 허용)
-const CLIENT_ID_PATTERN = /^[a-zA-Z0-9-]{16,64}$/;
-
-export function getOwner(request: Request): string | null {
-  const id = request.headers.get('x-client-id');
-  return id && CLIENT_ID_PATTERN.test(id) ? id : null;
+// 로그인한 사용자의 ID (과제의 owner 값). 로그인하지 않았으면 null
+export async function getOwner(): Promise<string | null> {
+  const user = await getSessionUser();
+  return user?.id ?? null;
 }
 
 // 요청 본문에서 수정 가능한 필드만 골라낸다 (_id, owner 등을 임의로 바꾸지 못하게)
@@ -30,7 +29,7 @@ export function jsonError(message: string, status: number, code?: string) {
   return Response.json({ error: message, code }, { status });
 }
 
-export const missingOwner = () => jsonError('사용자 식별 정보(x-client-id)가 없습니다.', 400);
+export const unauthorized = () => jsonError('로그인이 필요합니다.', 401, 'UNAUTHORIZED');
 
 // 공통 에러 → HTTP 응답 변환
 export function handleApiError(error: unknown, fallbackMessage: string) {

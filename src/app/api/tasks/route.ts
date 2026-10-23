@@ -1,5 +1,5 @@
 import { connectToDatabase } from '@/lib/mongodb';
-import { escapeRegex, getOwner, handleApiError, jsonError, missingOwner, pickTaskFields } from '@/lib/api';
+import { escapeRegex, getOwner, handleApiError, jsonError, unauthorized, pickTaskFields } from '@/lib/api';
 import Task from '@/models/Task';
 import { NextRequest } from 'next/server';
 
@@ -7,10 +7,9 @@ const MAX_BULK = 50;
 
 // GET /api/tasks - 내 과제 조회
 export async function GET(request: NextRequest) {
-  const owner = getOwner(request);
-  if (!owner) return missingOwner();
-
   try {
+    const owner = await getOwner();
+    if (!owner) return unauthorized();
     await connectToDatabase();
     const { searchParams } = request.nextUrl;
     const status = searchParams.get('status');
@@ -32,10 +31,9 @@ export async function GET(request: NextRequest) {
 
 // POST /api/tasks - 새 과제 생성 (배열을 보내면 여러 개를 한 번에 생성)
 export async function POST(request: NextRequest) {
-  const owner = getOwner(request);
-  if (!owner) return missingOwner();
-
   try {
+    const owner = await getOwner();
+    if (!owner) return unauthorized();
     await connectToDatabase();
     const body = await request.json();
     const items: unknown[] = Array.isArray(body) ? body : [body];
@@ -64,11 +62,10 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE /api/tasks - 내 과제 전체 삭제
-export async function DELETE(request: NextRequest) {
-  const owner = getOwner(request);
-  if (!owner) return missingOwner();
-
+export async function DELETE() {
   try {
+    const owner = await getOwner();
+    if (!owner) return unauthorized();
     await connectToDatabase();
     const { deletedCount } = await Task.deleteMany({ owner });
     return Response.json({ success: true, deletedCount });

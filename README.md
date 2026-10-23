@@ -3,8 +3,8 @@
 학생을 위한 일정·과제 관리 앱입니다. 과제·수행평가·시험·학교 행사를 등록하고, 대시보드·달력·통계로 한눈에 관리할 수 있습니다.
 
 - **기술 스택**: Next.js 16 (App Router) · TypeScript · MongoDB Atlas (Mongoose)
-- **데이터 저장**: 로그인 없이 브라우저(기기)마다 고유 ID를 만들어 각자의 일정만 저장·조회합니다.
-- **데모 모드**: DB에 연결할 수 없으면 자동으로 데모 모드로 전환되어 데이터를 해당 브라우저(localStorage)에만 저장합니다.
+- **회원 기능**: 아이디/비밀번호로 회원가입·로그인합니다. 비밀번호는 scrypt로 암호화해 저장하고, 로그인 상태는 httpOnly 쿠키 세션(30일)으로 유지합니다.
+- **데이터 저장**: 모든 일정은 로그인한 사용자별로 MongoDB Atlas에 저장되어 어느 기기에서든 같은 일정을 볼 수 있습니다.
 
 ## 로컬에서 실행하기
 
@@ -32,14 +32,19 @@ npm run dev
 3. **Settings → Environment Variables** 에 `MONGODB_URI` 를 추가합니다. (Production / Preview 모두 체크)
 4. **Deployments** 에서 **Redeploy** 합니다. (환경 변수는 새로 배포해야 적용됩니다)
 
-배포 후 앱의 **설정** 화면에서 "MongoDB Atlas — 연결됨"이 표시되면 성공입니다. "데모 모드"로 표시되면 그 옆에 나오는 오류 메시지를 확인하세요.
+배포 후 시작 화면에서 회원가입이 되면 성공입니다. DB 연결에 문제가 있으면 시작 화면 위쪽에 오류 메시지가 표시됩니다.
 
 ## API
 
-모든 요청에 `x-client-id` 헤더(기기별 ID)가 필요합니다.
+로그인 후 발급되는 `cm_session` 쿠키로 사용자를 구분합니다. 과제 API는 로그인하지 않으면 `401`을 돌려줍니다.
 
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
+| POST | `/api/auth/signup` | 회원가입 `{ username, password, nickname }` 후 바로 로그인 |
+| POST | `/api/auth/login` | 로그인 `{ username, password }` |
+| POST | `/api/auth/logout` | 로그아웃 |
+| GET | `/api/auth/me` | 현재 로그인한 사용자 |
+| DELETE | `/api/auth/me` | 회원 탈퇴 `{ password }` (계정·일정 모두 삭제) |
 | GET | `/api/tasks?status=&search=` | 내 일정 목록 |
 | POST | `/api/tasks` | 일정 생성 (배열을 보내면 최대 50개 일괄 생성) |
 | DELETE | `/api/tasks` | 내 일정 전체 삭제 |

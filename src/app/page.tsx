@@ -12,7 +12,8 @@ import {
   Task, TaskFormData, TaskStatus, SUBJECT_COLORS, STATUS_LABEL, KIND_COLOR,
 } from '@/types/task';
 import { dayDiff, fmtDate, getTodayISO, offsetDate, toLocalISO } from '@/lib/date';
-import { api, ApiError, loadDemoTasks, saveDemoTasks } from '@/lib/client';
+import { api, ApiError, UNAUTHORIZED_EVENT, User } from '@/lib/client';
+import AuthScreen from '@/components/AuthScreen';
 
 // ─── Helpers ──────────────────────────────────────────────────
 type Page = 'dashboard' | 'calendar' | 'tasks' | 'stats' | 'settings';
@@ -42,9 +43,6 @@ const makeDemoTasks = (): TaskFormData[] => [
   { title: '체육 준비물 확인', subject: '기타', kind: '학교 행사', due_date: offsetDate(4), estimated_minutes: 10, status: 'done', priority: 'normal', notes: '운동복 챙기기', completed_at: offsetDate(-2) },
 ];
 
-const withDemoIds = (list: TaskFormData[]): Task[] =>
-  list.map((t, i) => ({ ...t, _id: `demo-${Date.now()}-${i}` }));
-
 const TIPS = [
   '과제에 예상 시간을 적어두면 하루 계획을 세우기 쉬워요.',
   '마감이 가까운 과제부터 처리하면 불안감이 줄어들어요.',
@@ -53,29 +51,66 @@ const TIPS = [
 ];
 
 // ─── Entry: 브라우저에서만 앱을 렌더링 ────────────────────────────
-// 이 앱은 "오늘 날짜"와 기기별 저장소에 의존하므로, 빌드 시점 prerender에서는
-// 날짜를 읽지 않는 기본 화면만 그리고 실제 앱은 브라우저에서 렌더링한다.
+// 이 앱은 "오늘 날짜"와 로그인 상태에 의존하므로, 빌드 시점 prerender에서는
+// 날짜를 읽지 않는 로딩 화면만 그리고 실제 앱은 브라우저에서 렌더링한다.
 const subscribeNoop = () => () => {};
 
 export default function Home() {
   const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
-  if (!isClient) return <AppShellFallback />;
-  return <ClassMateApp />;
+  if (!isClient) return <LoadingScreen />;
+  return <AuthGate />;
 }
 
-function AppShellFallback() {
+function LoadingScreen() {
   return (
-    <div className="app-layout">
-      <Sidebar activePage="dashboard" onNavigate={() => {}} />
-      <main className="main-content">
-        <div className="spinner" aria-label="로딩 중" />
-      </main>
+    <div className="auth-page">
+      <div className="spinner" aria-label="로딩 중" />
     </div>
   );
 }
 
+// ─── 로그인 확인: 로그인했으면 앱, 아니면 시작 화면(회원가입/로그인) ─────
+function AuthGate() {
+  // undefined = 확인 중, null = 로그인 안 됨
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<{ user: User }>('/api/auth/me')
+      .then(({ user }) => setUser(user))
+      .catch((e) => {
+        // 401(로그인 안 됨)이 아닌 오류는 서버/DB 문제이므로 시작 화면에 안내
+        if (!(e instanceof ApiError && e.status === 401)) setNotice(e.message);
+        setUser(null);
+      });
+
+    // 사용 중 로그인이 만료되면 시작 화면으로
+    const onUnauthorized = () => {
+      setNotice('로그인이 만료되었어요. 다시 로그인해 주세요.');
+      setUser(null);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  if (user === undefined) return <LoadingScreen />;
+  if (!user) {
+    return (
+      <AuthScreen
+        notice={notice}
+        onAuthed={(u) => {
+          setNotice(null);
+          setUser(u);
+        }}
+      />
+    );
+  }
+  // key: 다른 계정으로 로그인하면 앱 상태를 완전히 새로 시작
+  return <ClassMateApp key={user.id} user={user} onSignedOut={() => setUser(null)} />;
+}
+
 // ─── Main Component ────────────────────────────────────────────
-function ClassMateApp() {
+function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,8 +127,9 @@ function ClassMateApp() {
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [selectedDate, setSelectedDate] = useState(getTodayISO);
-  const [isDBMode, setIsDBMode] = useState(false);
-  const [dbError, setDbError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   // ── Toast helper ──────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
@@ -116,25 +152,42 @@ function ClassMateApp() {
         const data = await api<Task[]>('/api/tasks');
         if (cancelled) return;
         setTasks(data);
-        setIsDBMode(true);
-        setDbError(null);
+        setLoadError(null);
       } catch (e) {
-        if (cancelled) return;
-        // DB에 연결할 수 없으면 이 브라우저에 저장하는 데모 모드로 동작
-        setTasks(loadDemoTasks() ?? withDemoIds(makeDemoTasks()));
-        setIsDBMode(false);
-        setDbError(errorMessage(e, '서버에 연결할 수 없습니다.'));
+        if (!cancelled) setLoadError(errorMessage(e, '일정을 불러오지 못했습니다.'));
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
-  // 데모 모드에서는 변경 사항을 localStorage에 저장 (새로고침해도 유지)
-  useEffect(() => {
-    if (!loading && !isDBMode) saveDemoTasks(tasks);
-  }, [tasks, loading, isDBMode]);
+  const retryLoad = () => {
+    setLoading(true);
+    setReloadKey((k) => k + 1);
+  };
+
+  // ── Account ───────────────────────────────────────────────────
+  const handleLogout = async () => {
+    try {
+      await api('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // 서버 오류가 나도 화면에서는 로그아웃 처리
+    }
+    onSignedOut();
+  };
+
+  const handleWithdraw = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const password = String(new FormData(e.currentTarget).get('password') ?? '');
+    if (!confirm('정말 탈퇴할까요? 계정과 모든 일정이 삭제되며 되돌릴 수 없어요.')) return;
+    try {
+      await api('/api/auth/me', { method: 'DELETE', body: { password } });
+      onSignedOut();
+    } catch (err) {
+      showToast(errorMessage(err, '회원 탈퇴에 실패했습니다.'));
+    }
+  };
 
   // ── CRUD ──────────────────────────────────────────────────────
   const replaceTask = (task: Task) =>
@@ -142,30 +195,22 @@ function ClassMateApp() {
 
   const handleSaveTask = async (data: TaskFormData) => {
     if (saving) return;
-    if (isDBMode) {
-      setSaving(true);
-      try {
-        if (editTask) {
-          replaceTask(await api<Task>(`/api/tasks/${editTask._id}`, { method: 'PUT', body: data }));
-          showToast('일정을 수정했어요.');
-        } else {
-          const created = await api<Task>('/api/tasks', { method: 'POST', body: data });
-          setTasks((prev) => [...prev, created]);
-          showToast('새 일정을 추가했어요.');
-        }
-      } catch (e) {
-        // 실패하면 모달을 닫지 않아 입력한 내용을 잃지 않도록 함
-        showToast(errorMessage(e, '저장에 실패했습니다. 다시 시도해 주세요.'));
-        return;
-      } finally {
-        setSaving(false);
+    setSaving(true);
+    try {
+      if (editTask) {
+        replaceTask(await api<Task>(`/api/tasks/${editTask._id}`, { method: 'PUT', body: data }));
+        showToast('일정을 수정했어요.');
+      } else {
+        const created = await api<Task>('/api/tasks', { method: 'POST', body: data });
+        setTasks((prev) => [...prev, created]);
+        showToast('새 일정을 추가했어요.');
       }
-    } else if (editTask) {
-      replaceTask({ ...editTask, ...data });
-      showToast('일정을 수정했어요. (데모 모드)');
-    } else {
-      setTasks((prev) => [...prev, { _id: `demo-${Date.now()}`, ...data }]);
-      showToast('새 일정을 추가했어요. (데모 모드)');
+    } catch (e) {
+      // 실패하면 모달을 닫지 않아 입력한 내용을 잃지 않도록 함
+      showToast(errorMessage(e, '저장에 실패했습니다. 다시 시도해 주세요.'));
+      return;
+    } finally {
+      setSaving(false);
     }
     setModalOpen(false);
     setEditTask(null);
@@ -176,7 +221,6 @@ function ClassMateApp() {
     const completed_at = newStatus === 'done' ? (completedAt ?? task.completed_at ?? getTodayISO()) : null;
     replaceTask({ ...task, status: newStatus, completed_at });
     if (successMsg) showToast(successMsg);
-    if (!isDBMode) return;
     try {
       await api(`/api/tasks/${task._id}`, { method: 'PUT', body: { status: newStatus, completed_at } });
     } catch (e) {
@@ -199,7 +243,6 @@ function ClassMateApp() {
     if (!confirm(`"${task.title}"를 삭제할까요?`)) return;
     setTasks((prev) => prev.filter((t) => t._id !== task._id));
     showToast('일정을 삭제했어요.');
-    if (!isDBMode) return;
     try {
       await api(`/api/tasks/${task._id}`, { method: 'DELETE' });
     } catch (e) {
@@ -210,14 +253,8 @@ function ClassMateApp() {
 
   const handleLoadSamples = async () => {
     if (tasks.length && !confirm('현재 일정에 예시 데이터 8개를 추가할까요?')) return;
-    const samples = makeDemoTasks();
-    if (!isDBMode) {
-      setTasks((prev) => [...prev, ...withDemoIds(samples)]);
-      showToast('예시 데이터를 추가했어요.');
-      return;
-    }
     try {
-      const created = await api<Task[]>('/api/tasks', { method: 'POST', body: samples });
+      const created = await api<Task[]>('/api/tasks', { method: 'POST', body: makeDemoTasks() });
       setTasks((prev) => [...prev, ...created]);
       showToast('예시 데이터를 추가했어요.');
     } catch (e) {
@@ -228,12 +265,10 @@ function ClassMateApp() {
   const handleDeleteAll = async () => {
     if (!tasks.length) return showToast('삭제할 일정이 없어요.');
     if (!confirm(`등록된 일정 ${tasks.length}개를 모두 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) return;
-    if (isDBMode) {
-      try {
-        await api('/api/tasks', { method: 'DELETE' });
-      } catch (e) {
-        return showToast(errorMessage(e, '삭제에 실패했습니다.'));
-      }
+    try {
+      await api('/api/tasks', { method: 'DELETE' });
+    } catch (e) {
+      return showToast(errorMessage(e, '삭제에 실패했습니다.'));
     }
     setTasks([]);
     showToast('모든 일정을 삭제했어요.');
@@ -843,38 +878,50 @@ function ClassMateApp() {
       <div className="welcome-row">
         <div>
           <h2>설정</h2>
-          <p>ClassMate 앱의 연결 상태와 데이터를 관리합니다.</p>
+          <p>내 계정과 일정 데이터를 관리합니다.</p>
         </div>
       </div>
       <div className="settings-grid">
         <div className="card card-body">
           <div className="card-header">
             <div>
-              <h3>연결 상태</h3>
-              <p>현재 동작 방식을 확인합니다.</p>
+              <h3>내 계정</h3>
+              <p>로그인한 계정 정보입니다.</p>
             </div>
+            <span className="tag green">로그인됨</span>
           </div>
           <div>
             {[
-              {
-                label: 'MongoDB Atlas',
-                desc: isDBMode
-                  ? '연결됨 — 데이터가 클라우드에 저장됩니다.'
-                  : `데모 모드 — 데이터가 이 브라우저에만 저장됩니다. (${dbError ?? 'DB 미연결'})`,
-                tag: isDBMode ? 'green' : 'orange',
-                tagText: isDBMode ? '연결됨' : '데모 모드',
-              },
-              { label: '기기별 데이터', desc: '로그인 없이 이 브라우저마다 별도의 일정 목록을 사용합니다.', tag: 'blue', tagText: '익명 저장' },
-              { label: '반응형 디자인', desc: '모바일 우선 반응형 레이아웃을 지원합니다.', tag: 'green', tagText: '지원' },
-            ].map(({ label, desc, tag, tagText }) => (
+              { label: '이름', value: user.nickname },
+              { label: '아이디', value: user.username },
+              { label: '저장 위치', value: '클라우드(MongoDB Atlas) — 어느 기기에서든 로그인하면 같은 일정을 볼 수 있어요.' },
+            ].map(({ label, value }) => (
               <div key={label} className="setting-row">
                 <div>
                   <strong style={{ fontSize: 13 }}>{label}</strong>
-                  <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{desc}</p>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{value}</p>
                 </div>
-                <span className={`tag ${tag}`}>{tagText}</span>
               </div>
             ))}
+          </div>
+          <div style={{ display: 'grid', gap: '10px', marginTop: 16 }}>
+            <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleLogout}>
+              ↪ 로그아웃
+            </button>
+            {withdrawOpen ? (
+              <form className="withdraw-form" onSubmit={handleWithdraw}>
+                <label htmlFor="withdraw-password">회원 탈퇴 — 비밀번호를 입력해 주세요</label>
+                <input id="withdraw-password" name="password" type="password" required autoComplete="current-password" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn-secondary" onClick={() => setWithdrawOpen(false)}>취소</button>
+                  <button type="submit" className="btn-secondary danger-btn">탈퇴하기</button>
+                </div>
+              </form>
+            ) : (
+              <button className="btn-secondary danger-btn" style={{ textAlign: 'left', padding: '13px' }} onClick={() => setWithdrawOpen(true)}>
+                회원 탈퇴
+              </button>
+            )}
           </div>
         </div>
         <div className="card card-body">
@@ -895,15 +942,6 @@ function ClassMateApp() {
               🗑 모든 일정 삭제
             </button>
           </div>
-          {!isDBMode && (
-            <div className="insight-box">
-              <strong>MongoDB 연결 방법</strong>
-              <p>
-                로컬 개발: 프로젝트 폴더의 <code>.env.local</code> 파일에 <code>MONGODB_URI</code>를 입력하세요.<br />
-                Vercel 배포: 프로젝트 → Settings → Environment Variables에 <code>MONGODB_URI</code>를 추가한 뒤 다시 배포하세요.
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </section>
@@ -922,7 +960,7 @@ function ClassMateApp() {
   return (
     <>
       <div className="app-layout">
-        <Sidebar activePage={activePage} onNavigate={navigate} />
+        <Sidebar activePage={activePage} onNavigate={navigate} user={user} onLogout={handleLogout} />
 
         <main className="main-content">
           {/* Topbar */}
@@ -989,16 +1027,15 @@ function ClassMateApp() {
             </div>
           </header>
 
-          {!loading && !isDBMode && (
-            <div className="demo-banner" role="note">
-              데모 모드로 실행 중이에요. 데이터는 이 브라우저에만 저장됩니다.
-              <button className="text-btn" onClick={() => navigate('settings')}>자세히 →</button>
-            </div>
-          )}
-
           {/* Page content */}
           {loading ? (
             <div className="spinner" aria-label="로딩 중" />
+          ) : loadError ? (
+            <div className="card card-body" style={{ textAlign: 'center' }}>
+              <div className="empty-icon">⚠️</div>
+              <p style={{ margin: '8px 0 16px', color: 'var(--muted)' }}>{loadError}</p>
+              <button className="btn-primary" onClick={retryLoad}>다시 시도</button>
+            </div>
           ) : (
             <>
               {activePage === 'dashboard' && renderDashboard()}

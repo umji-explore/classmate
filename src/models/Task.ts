@@ -6,7 +6,7 @@ export type TaskKind = '과제' | '수행평가' | '시험' | '학교 행사' | 
 export type TaskSubject = '국어' | '수학' | '영어' | '과학' | '사회' | '정보' | '기타';
 
 export interface ITask {
-  owner: string; // 기기별 익명 사용자 ID (클라이언트가 x-client-id 헤더로 전달)
+  owner: string; // 이 과제를 만든 사용자(User)의 _id
   title: string;
   subject: TaskSubject;
   kind: TaskKind;

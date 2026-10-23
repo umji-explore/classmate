@@ -1,12 +1,15 @@
 'use client';
 
-import { LayoutDashboard, CalendarDays, ListTodo, BarChart2, Settings, BookOpen } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ListTodo, BarChart2, Settings, BookOpen, LogOut } from 'lucide-react';
+import type { User } from '@/lib/client';
 
 type Page = 'dashboard' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 interface SidebarProps {
   activePage: Page;
   onNavigate: (page: Page) => void;
+  user?: User;
+  onLogout?: () => void;
 }
 
 const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
@@ -16,7 +19,7 @@ const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'stats', label: '학습 통계', icon: <BarChart2 size={18} /> },
 ];
 
-export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
+export default function Sidebar({ activePage, onNavigate, user, onLogout }: SidebarProps) {
   return (
     <aside className="sidebar">
       {/* Brand */}
@@ -70,11 +73,16 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
         </div>
 
         <div className="profile-row">
-          <div className="avatar">학</div>
-          <div>
-            <strong>학생 사용자</strong>
-            <span>ClassMate 앱</span>
+          <div className="avatar">{user?.nickname.slice(0, 1) ?? '학'}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <strong>{user?.nickname ?? '학생 사용자'}</strong>
+            <span>{user ? `@${user.username}` : 'ClassMate 앱'}</span>
           </div>
+          {onLogout && (
+            <button className="logout-btn" onClick={onLogout} aria-label="로그아웃" title="로그아웃">
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </aside>
