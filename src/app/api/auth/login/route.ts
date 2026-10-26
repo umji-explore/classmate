@@ -1,5 +1,5 @@
 import { connectToDatabase } from '@/lib/mongodb';
-import { createSession, verifyDummyPassword, verifyPassword } from '@/lib/auth';
+import { createSession, ensureRecoveryCode, verifyDummyPassword, verifyPassword } from '@/lib/auth';
 import { handleApiError, jsonError } from '@/lib/api';
 import User from '@/models/User';
 
@@ -19,7 +19,9 @@ export async function POST(request: Request) {
     if (!user || !ok) return jsonError('아이디 또는 비밀번호가 올바르지 않습니다.', 401, 'INVALID_CREDENTIALS');
 
     await createSession(user._id);
-    return Response.json({ user: { id: String(user._id), username: user.username, nickname: user.nickname } });
+    const id = String(user._id);
+    const recovery_code = await ensureRecoveryCode(id, user.recovery_code);
+    return Response.json({ user: { id, username: user.username, nickname: user.nickname, recovery_code } });
   } catch (error) {
     return handleApiError(error, '로그인에 실패했습니다.');
   }

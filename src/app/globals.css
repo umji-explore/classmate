@@ -1727,3 +1727,43 @@ a {
   border-radius: 10px;
   padding: 0 12px;
 }
+
+/* ─── Recovery code ──────────────────────────────────────────── */
+.recovery-box {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px dashed #c9d1ff;
+  border-radius: 14px;
+  background: #f7f8ff;
+}
+
+.recovery-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.recovery-code {
+  margin: 8px 0 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: var(--blue);
+}
+
+.recovery-note {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.auth-info {
+  background: var(--teal-soft);
+  border: 1px solid #c4ebe3;
+  color: #1d7d6c;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}

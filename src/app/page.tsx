@@ -84,11 +84,8 @@ function AuthGate() {
         setUser(null);
       });
 
-    // 사용 중 로그인이 만료되면 시작 화면으로
-    const onUnauthorized = () => {
-      setNotice('로그인이 만료되었어요. 다시 로그인해 주세요.');
-      setUser(null);
-    };
+    // 사용 중 로그인이 풀리면 시작 화면으로 (안내 문구 없이 조용히 이동)
+    const onUnauthorized = () => setUser(null);
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
@@ -903,6 +900,27 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
                 </div>
               </div>
             ))}
+          </div>
+          <div className="recovery-box">
+            <div className="recovery-head">
+              <strong style={{ fontSize: 13 }}>고유 코드</strong>
+              <button
+                className="text-btn"
+                onClick={() =>
+                  navigator.clipboard
+                    ?.writeText(user.recovery_code)
+                    .then(() => showToast('고유 코드를 복사했어요.'))
+                    .catch(() => showToast('복사하지 못했어요. 직접 적어 두세요.'))
+                }
+              >
+                복사
+              </button>
+            </div>
+            <div className="recovery-code" aria-label="고유 코드">{user.recovery_code}</div>
+            <p className="recovery-note">
+              비밀번호를 잊어버렸을 때 아이디와 이 코드로 비밀번호를 다시 설정할 수 있어요.
+              다른 사람에게 알려 주지 말고 꼭 따로 기록해 두세요.
+            </p>
           </div>
           <div style={{ display: 'grid', gap: '10px', marginTop: 16 }}>
             <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleLogout}>
