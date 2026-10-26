@@ -946,7 +946,7 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
             {pwOpen ? (
               <form className="account-form" onSubmit={handleChangePassword}>
                 <strong style={{ fontSize: 13 }}>비밀번호 변경</strong>
-                <input name="current_password" type="password" required autoComplete="current-password" placeholder="현재 비밀번호 (임시 비밀번호)" aria-label="현재 비밀번호" />
+                <input name="current_password" type="password" required autoComplete="current-password" placeholder="현재 비밀번호" aria-label="현재 비밀번호" />
                 <input name="new_password" type="password" required minLength={8} maxLength={64} autoComplete="new-password" placeholder="새 비밀번호 (영문+숫자 8자 이상)" aria-label="새 비밀번호" />
                 <input name="new_password_confirm" type="password" required autoComplete="new-password" placeholder="새 비밀번호 확인" aria-label="새 비밀번호 확인" />
                 <div style={{ display: 'flex', gap: 8 }}>

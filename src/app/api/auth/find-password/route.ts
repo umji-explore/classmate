@@ -1,11 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { connectToDatabase } from '@/lib/mongodb';
-import {
-  decryptPassword, encryptPassword, generateTempPassword, hashPassword, isPasswordVaultEnabled,
-  normalizeRecoveryCode, RECOVERY_CODE_RULE,
-} from '@/lib/auth';
+import { decryptPassword, isPasswordVaultEnabled, normalizeRecoveryCode, RECOVERY_CODE_RULE } from '@/lib/auth';
 import { handleApiError, jsonError } from '@/lib/api';
-import Session from '@/models/Session';
 import User from '@/models/User';
 
 const MAX_FAILS = 5; // 연속으로 이만큼 틀리면
@@ -58,18 +54,17 @@ export async function POST(request: Request) {
       await User.updateOne({ _id: user._id }, { $set: { reset_failed_count: 0, reset_locked_until: null } });
     }
 
-    // 원래 비밀번호를 복호화해서 알려준다
+    // 가입(또는 로그인·비밀번호 변경) 때 입력한 원래 비밀번호를 복호화해서 그대로 알려준다
     const password = decryptPassword(user.password_enc);
     if (password) return Response.json({ password });
 
-    // 사본이 없는 경우(이 기능 전에 가입한 뒤 한 번도 로그인하지 않은 계정)에만 임시 비밀번호로 대신한다
-    const tempPassword = generateTempPassword();
-    await User.updateOne(
-      { _id: user._id },
-      { $set: { password_hash: await hashPassword(tempPassword), password_enc: encryptPassword(tempPassword) ?? undefined } }
+    // 이 기능이 생기기 전에 가입한 뒤 한 번도 로그인하지 않은 계정은 원래 비밀번호가 저장되어 있지 않다
+    // (임시 비밀번호로 바꾸지 않고 그대로 둔다)
+    return jsonError(
+      '이 계정은 비밀번호 찾기 기능이 생기기 전에 가입해서 비밀번호가 보관되어 있지 않아요. 기억나는 비밀번호로 한 번 로그인하면 그 다음부터 찾을 수 있어요.',
+      404,
+      'PASSWORD_NOT_STORED'
     );
-    await Session.deleteMany({ user: user._id });
-    return Response.json({ password: tempPassword, temporary: true });
   } catch (error) {
     return handleApiError(error, '비밀번호를 찾지 못했습니다.');
   }

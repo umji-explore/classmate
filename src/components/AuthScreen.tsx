@@ -33,8 +33,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
   const [submitting, setSubmitting] = useState(false);
   const [createdUser, setCreatedUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
-  // 비밀번호 찾기 결과 (temporary: 원래 비밀번호 사본이 없는 예전 계정이라 임시 비밀번호를 발급한 경우)
-  const [found, setFound] = useState<{ password: string; temporary: boolean } | null>(null);
+  const [foundPassword, setFoundPassword] = useState<string | null>(null); // 비밀번호 찾기 결과 (원래 비밀번호)
   const [lastUsername, setLastUsername] = useState(''); // 비밀번호 찾기 후 로그인 폼에 미리 채움
 
   const switchMode = (m: Mode) => {
@@ -71,12 +70,12 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
         const { user } = await api<{ user: User }>('/api/auth/login', { method: 'POST', body: { username, password } });
         onAuthed(user);
       } else if (mode === 'reset') {
-        const res = await api<{ password: string; temporary?: boolean }>('/api/auth/find-password', {
+        const res = await api<{ password: string }>('/api/auth/find-password', {
           method: 'POST',
           body: { username, recovery_code: get('recovery_code') },
         });
         setLastUsername(username);
-        setFound({ password: res.password, temporary: !!res.temporary });
+        setFoundPassword(res.password);
         switchMode('resetDone');
       }
     } catch (err) {
@@ -154,29 +153,21 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
     }
 
     // ── 비밀번호 찾기 완료: 찾은 비밀번호 안내 ──
-    if (mode === 'resetDone' && found) {
+    if (mode === 'resetDone' && foundPassword) {
       return (
         <>
-          <h1 className="auth-title">{found.temporary ? '임시 비밀번호를 발급했어요' : '비밀번호를 찾았어요'}</h1>
-          <p className="auth-sub">
-            {found.temporary
-              ? '예전에 가입한 계정이라 원래 비밀번호를 찾을 수 없어서, 임시 비밀번호로 바꿔 드렸어요.'
-              : `${lastUsername} 계정의 비밀번호예요.`}
-          </p>
+          <h1 className="auth-title">비밀번호를 찾았어요</h1>
+          <p className="auth-sub">{lastUsername} 계정에 설정한 비밀번호예요.</p>
 
           <div className="recovery-box" style={{ marginTop: 20 }}>
             <div className="recovery-head">
-              <strong style={{ fontSize: 13 }}>{found.temporary ? '임시 비밀번호' : '비밀번호'}</strong>
-              <button className="text-btn" onClick={() => copyText(found.password)}>
+              <strong style={{ fontSize: 13 }}>비밀번호</strong>
+              <button className="text-btn" onClick={() => copyText(foundPassword)}>
                 {copied ? '복사됨 ✓' : '복사'}
               </button>
             </div>
-            <div className="recovery-code found-password">{found.password}</div>
-            <p className="recovery-note">
-              {found.temporary
-                ? '로그인한 뒤 설정 → 내 계정에서 원하는 비밀번호로 바꿔 주세요.'
-                : '주변에 다른 사람이 없는지 확인하고, 확인한 뒤에는 이 화면을 닫아 주세요.'}
-            </p>
+            <div className="recovery-code found-password">{foundPassword}</div>
+            <p className="recovery-note">주변에 다른 사람이 없는지 확인하고, 확인한 뒤에는 이 화면을 닫아 주세요.</p>
           </div>
 
           {error && <div className="auth-error" role="alert" style={{ marginTop: 12 }}>{error}</div>}
