@@ -1728,7 +1728,7 @@ a {
   padding: 0 12px;
 }
 
-/* ─── Recovery code ──────────────────────────────────────────── */
+/* ─── Info box (비밀번호 찾기 안내) ──────────────────────────────────────────── */
 .recovery-box {
   margin-top: 16px;
   padding: 14px 16px;
@@ -1737,20 +1737,7 @@ a {
   background: #f7f8ff;
 }
 
-.recovery-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 
-.recovery-code {
-  margin: 8px 0 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: 6px;
-  color: var(--blue);
-}
 
 .recovery-note {
   font-size: 11px;
@@ -1774,9 +1761,3 @@ a {
   padding: 0 12px;
 }
 
-/* 찾은 비밀번호는 대소문자·특수문자가 섞일 수 있어 원래 모양 그대로, 줄바꿈 허용 */
-.recovery-code.found-password {
-  font-size: 20px;
-  letter-spacing: 1px;
-  word-break: break-all;
-}

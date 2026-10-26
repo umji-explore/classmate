@@ -103,11 +103,17 @@ function AuthGate() {
     );
   }
   // key: 다른 계정으로 로그인하면 앱 상태를 완전히 새로 시작
-  return <ClassMateApp key={user.id} user={user} onSignedOut={() => setUser(null)} />;
+  return <ClassMateApp key={user.id} user={user} onUserChange={setUser} onSignedOut={() => setUser(null)} />;
 }
 
 // ─── Main Component ────────────────────────────────────────────
-function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => void }) {
+function ClassMateApp({
+  user, onUserChange, onSignedOut,
+}: {
+  user: User;
+  onUserChange: (user: User) => void;
+  onSignedOut: () => void;
+}) {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +134,7 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
   const [reloadKey, setReloadKey] = useState(0);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   // ── Toast helper ──────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
@@ -191,6 +198,22 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
       showToast('비밀번호를 변경했어요.');
     } catch (err) {
       showToast(errorMessage(err, '비밀번호를 변경하지 못했습니다.'));
+    }
+  };
+
+  const handleChangeEmail = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    try {
+      const res = await api<{ user: User }>('/api/auth/email', {
+        method: 'PUT',
+        body: { email: String(fd.get('email') ?? '').trim(), password: String(fd.get('password') ?? '') },
+      });
+      onUserChange(res.user);
+      setEmailOpen(false);
+      showToast('이메일을 저장했어요.');
+    } catch (err) {
+      showToast(errorMessage(err, '이메일을 저장하지 못했습니다.'));
     }
   };
 
@@ -920,28 +943,31 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
                 </div>
               </div>
             ))}
-          </div>
-          <div className="recovery-box">
-            <div className="recovery-head">
-              <strong style={{ fontSize: 13 }}>고유 코드</strong>
-              <button
-                className="text-btn"
-                onClick={() =>
-                  navigator.clipboard
-                    ?.writeText(user.recovery_code)
-                    .then(() => showToast('고유 코드를 복사했어요.'))
-                    .catch(() => showToast('복사하지 못했어요. 직접 적어 두세요.'))
-                }
-              >
-                복사
-              </button>
+            <div className="setting-row">
+              <div>
+                <strong style={{ fontSize: 13 }}>이메일</strong>
+                <p style={{ fontSize: 12, color: user.email ? 'var(--muted)' : 'var(--red)', marginTop: 4 }}>
+                  {user.email ?? '등록되지 않았어요. 비밀번호를 잊어버렸을 때 찾으려면 이메일을 등록해 주세요.'}
+                </p>
+              </div>
+              {!emailOpen && (
+                <button className="text-btn" style={{ flexShrink: 0 }} onClick={() => setEmailOpen(true)}>
+                  {user.email ? '변경' : '등록'}
+                </button>
+              )}
             </div>
-            <div className="recovery-code" aria-label="고유 코드">{user.recovery_code}</div>
-            <p className="recovery-note">
-              비밀번호를 잊어버렸을 때 아이디와 이 코드로 비밀번호를 다시 설정할 수 있어요.
-              다른 사람에게 알려 주지 말고 꼭 따로 기록해 두세요.
-            </p>
           </div>
+          {emailOpen && (
+            <form className="account-form" style={{ marginTop: 12 }} onSubmit={handleChangeEmail}>
+              <strong style={{ fontSize: 13 }}>이메일 {user.email ? '변경' : '등록'}</strong>
+              <input name="email" type="email" required maxLength={100} autoComplete="email" defaultValue={user.email ?? ''} placeholder="example@gmail.com" aria-label="이메일" />
+              <input name="password" type="password" required autoComplete="current-password" placeholder="비밀번호 확인" aria-label="비밀번호" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" className="btn-secondary" onClick={() => setEmailOpen(false)}>취소</button>
+                <button type="submit" className="btn-primary">저장</button>
+              </div>
+            </form>
+          )}
           <div style={{ display: 'grid', gap: '10px', marginTop: 16 }}>
             {pwOpen ? (
               <form className="account-form" onSubmit={handleChangePassword}>

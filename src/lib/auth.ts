@@ -1,6 +1,4 @@
-import {
-  createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, scrypt, timingSafeEqual,
-} from 'node:crypto';
+import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
@@ -13,65 +11,42 @@ export const SESSION_COOKIE = 'cm_session';
 const SESSION_DAYS = 30;
 
 // ── 비밀번호 ────────────────────────────────────────────────────
-// 저장 형식: scrypt$<salt hex>$<hash hex>
+// 저장 형식: scrypt$<salt hex>$<hash hex>  (되돌릴 수 없는 해시 — 원래 비밀번호는 어디에도 저장하지 않음)
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
   const hash = await scryptAsync(password, salt, 64);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [algo, saltHex, hashHex] = stored.split('$');
+export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
+  const [algo, saltHex, hashHex] = (stored ?? '').split('$');
   if (algo !== 'scrypt' || !saltHex || !hashHex) return false;
   const expected = Buffer.from(hashHex, 'hex');
   const actual = await scryptAsync(password, Buffer.from(saltHex, 'hex'), expected.length);
   return timingSafeEqual(expected, actual);
 }
 
-// ── 비밀번호 찾기용 암호화 보관 ─────────────────────────────────
-// 로그인 확인은 위의 scrypt 해시로 하고, "비밀번호 찾기"에서 원래 비밀번호를 보여주기 위해
-// AES-256-GCM으로 암호화한 사본을 따로 저장한다. 열쇠(PASSWORD_ENCRYPTION_KEY)는 DB가 아닌
-// 환경 변수에만 있으므로 DB만 유출돼서는 비밀번호를 알 수 없다.
-// 열쇠를 바꾸거나 잃어버리면 기존 사본은 복호화할 수 없으니 주의.
-function getEncryptionKey(): Buffer | null {
-  const raw = process.env.PASSWORD_ENCRYPTION_KEY;
-  if (!raw) return null;
-  const key = Buffer.from(raw, 'base64');
-  return key.length === 32 ? key : null;
-}
-
-export const isPasswordVaultEnabled = () => getEncryptionKey() !== null;
-
-// 저장 형식: v1:<iv>:<auth tag>:<암호문> (모두 base64)
-export function encryptPassword(password: string): string | null {
-  const key = getEncryptionKey();
-  if (!key) return null;
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  const encrypted = Buffer.concat([cipher.update(password, 'utf8'), cipher.final()]);
-  return ['v1', iv, cipher.getAuthTag(), encrypted].map((x) => (typeof x === 'string' ? x : x.toString('base64'))).join(':');
-}
-
-export function decryptPassword(stored: string | null | undefined): string | null {
-  const key = getEncryptionKey();
-  if (!key || !stored) return null;
-  const [version, iv, tag, data] = stored.split(':');
-  if (version !== 'v1' || !iv || !tag || !data) return null;
-  try {
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64'));
-    return Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString('utf8');
-  } catch {
-    return null; // 열쇠가 바뀌었거나 데이터가 손상된 경우
-  }
-}
-
 // 존재하지 않는 아이디로 로그인할 때도 비슷한 시간이 걸리게 해 아이디 존재 여부를 숨긴다
 const DUMMY_HASH = `scrypt$${'0'.repeat(32)}$${'0'.repeat(128)}`;
 export const verifyDummyPassword = (password: string) => verifyPassword(password, DUMMY_HASH);
 
+// 비밀번호 찾기 때 이메일로 보내는 임시 비밀번호 (헷갈리는 0/O, 1/l/I 제외, 영문+숫자 10자리)
+const TEMP_LETTERS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
+const TEMP_DIGITS = '23456789';
+export function generateTempPassword(): string {
+  const chars = TEMP_LETTERS + TEMP_DIGITS;
+  while (true) {
+    let pw = '';
+    for (let i = 0; i < 10; i++) pw += chars[randomInt(chars.length)];
+    if (/[a-zA-Z]/.test(pw) && /[0-9]/.test(pw)) return pw;
+  }
+}
+
 // ── 입력값 검사 ─────────────────────────────────────────────────
 export const USERNAME_RULE = /^[a-z0-9_]{4,20}$/;
+export const EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 export function validatePassword(password: string): string | null {
   if (password.length < 8 || password.length > 64) return '비밀번호는 8~64자여야 합니다.';
@@ -79,67 +54,23 @@ export function validatePassword(password: string): string | null {
   return null;
 }
 
-export function validateSignup(username: string, password: string, nickname: string): string | null {
+export function validateEmail(email: string): string | null {
+  if (!EMAIL_RULE.test(email) || email.length > 100) return '이메일 주소를 정확히 입력해 주세요.';
+  return null;
+}
+
+export function validateSignup(username: string, password: string, nickname: string, email: string): string | null {
   if (!USERNAME_RULE.test(username)) return '아이디는 영문 소문자, 숫자, 밑줄(_)로 4~20자여야 합니다.';
   const invalidPassword = validatePassword(password);
   if (invalidPassword) return invalidPassword;
   if (!nickname || nickname.length > 20) return '이름은 1~20자로 입력해 주세요.';
-  return null;
+  return validateEmail(email);
 }
-
-// ── 고유 코드 (비밀번호 찾기용) ─────────────────────────────────
-// 헷갈리기 쉬운 글자(0/O, 1/I/L)는 빼고, 영문 대문자와 숫자를 반드시 하나 이상 섞은 6자리
-const CODE_LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
-const CODE_DIGITS = '23456789';
-const CODE_CHARS = CODE_LETTERS + CODE_DIGITS;
-export const RECOVERY_CODE_RULE = /^[A-Z0-9]{6}$/;
-
-export function generateRecoveryCode(): string {
-  while (true) {
-    let code = '';
-    for (let i = 0; i < 6; i++) code += CODE_CHARS[randomInt(CODE_CHARS.length)];
-    if (/[A-Z]/.test(code) && /[0-9]/.test(code)) return code;
-  }
-}
-
-export const normalizeRecoveryCode = (code: string) => code.replace(/[\s-]/g, '').toUpperCase();
 
 // MongoDB unique 인덱스 충돌 에러인지 (field를 주면 그 필드의 충돌인지까지 확인)
 export function isDuplicateKeyError(error: unknown, field?: string): boolean {
   const e = error as { code?: number; keyPattern?: Record<string, unknown> };
   return e?.code === 11000 && (!field || !!e.keyPattern?.[field]);
-}
-
-// 다른 계정과 겹치지 않는 코드를 만든다. 아주 드물게 겹치면 새 코드로 다시 시도.
-// (최종 보장은 DB의 unique 인덱스가 하고, 저장할 때 충돌하면 호출하는 쪽에서 다시 시도한다)
-export async function generateUniqueRecoveryCode(): Promise<string> {
-  for (let i = 0; i < 10; i++) {
-    const code = generateRecoveryCode();
-    if (!(await User.exists({ recovery_code: code }))) return code;
-  }
-  throw new Error('고유 코드를 만들지 못했습니다.');
-}
-
-// 고유 코드 기능이 생기기 전에 가입한 계정에는 코드를 새로 발급
-export async function ensureRecoveryCode(userId: string, current?: string | null): Promise<string> {
-  if (current) return current;
-  for (let i = 0; i < 5; i++) {
-    const code = await generateUniqueRecoveryCode();
-    try {
-      const updated = await User.findOneAndUpdate(
-        { _id: userId, recovery_code: { $exists: false } },
-        { $set: { recovery_code: code } },
-        { returnDocument: 'after' }
-      ).lean();
-      if (updated?.recovery_code) return updated.recovery_code;
-      // 동시에 다른 요청이 먼저 발급한 경우
-      const existing = await User.findById(userId).select('recovery_code').lean();
-      if (existing?.recovery_code) return existing.recovery_code;
-    } catch (error) {
-      if (!isDuplicateKeyError(error, 'recovery_code')) throw error;
-    }
-  }
-  throw new Error('고유 코드를 발급하지 못했습니다.');
 }
 
 // ── 세션 ────────────────────────────────────────────────────────
@@ -173,8 +104,15 @@ export interface SessionUser {
   id: string;
   username: string;
   nickname: string;
-  recovery_code: string;
+  email: string | null; // 이메일 기능 전에 가입한 계정은 null
 }
+
+export const toSessionUser = (user: { _id: unknown; username: string; nickname: string; email?: string | null }): SessionUser => ({
+  id: String(user._id),
+  username: user.username,
+  nickname: user.nickname,
+  email: user.email ?? null,
+});
 
 // 현재 요청의 로그인 사용자 (없으면 null)
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -185,9 +123,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await Session.findOne({ token_hash: hashToken(token), expires_at: { $gt: new Date() } }).lean();
   if (!session) return null;
 
-  const user = await User.findById(session.user).select('username nickname recovery_code').lean();
-  if (!user) return null;
-  const id = String(user._id);
-  const recovery_code = await ensureRecoveryCode(id, user.recovery_code);
-  return { id, username: user.username, nickname: user.nickname, recovery_code };
+  const user = await User.findById(session.user).select('username nickname email').lean();
+  return user ? toSessionUser(user) : null;
 }

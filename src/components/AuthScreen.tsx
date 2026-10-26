@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { BookOpen, CalendarDays, BarChart2, Bell, ArrowLeft } from 'lucide-react';
 import { api, ApiError, User } from '@/lib/client';
 
-// welcome: 첫 화면, created: 가입 직후 고유 코드 안내, reset: 비밀번호 찾기, resetDone: 찾은 비밀번호 안내
-type Mode = 'welcome' | 'login' | 'signup' | 'reset' | 'created' | 'resetDone';
+// welcome: 첫 화면, reset: 비밀번호 찾기, resetSent: 임시 비밀번호 메일 발송 안내
+type Mode = 'welcome' | 'login' | 'signup' | 'reset' | 'resetSent';
 
 interface AuthScreenProps {
   onAuthed: (user: User) => void;
@@ -18,10 +18,10 @@ const FEATURES = [
   { icon: <BarChart2 size={18} />, title: '학습 통계', desc: '과목별 진행 상황과 나의 습관을 분석해요.' },
 ];
 
-const TITLES: Record<Exclude<Mode, 'welcome' | 'created' | 'resetDone'>, [string, string]> = {
+const TITLES: Record<'login' | 'signup' | 'reset', [string, string]> = {
   login: ['로그인', '가입한 아이디와 비밀번호를 입력해 주세요.'],
-  signup: ['회원가입', '아이디와 비밀번호를 만들어 주세요.'],
-  reset: ['비밀번호 찾기', '아이디와 가입할 때 받은 고유 코드를 입력하면 비밀번호를 알려 드려요.'],
+  signup: ['회원가입', '비밀번호를 잊어버렸을 때를 위해 이메일도 함께 입력해 주세요.'],
+  reset: ['비밀번호 찾기', '아이디와 가입할 때 입력한 이메일을 적으면 임시 비밀번호를 메일로 보내 드려요.'],
 };
 
 const errorText = (err: unknown) =>
@@ -31,15 +31,12 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
   const [mode, setMode] = useState<Mode>('welcome');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [createdUser, setCreatedUser] = useState<User | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [foundPassword, setFoundPassword] = useState<string | null>(null); // 비밀번호 찾기 결과 (원래 비밀번호)
+  const [sentTo, setSentTo] = useState(''); // 임시 비밀번호를 보낸 이메일 (일부 가림)
   const [lastUsername, setLastUsername] = useState(''); // 비밀번호 찾기 후 로그인 폼에 미리 채움
 
   const switchMode = (m: Mode) => {
     setMode(m);
     setError(null);
-    setCopied(false);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -61,36 +58,25 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
       if (mode === 'signup') {
         const { user } = await api<{ user: User }>('/api/auth/signup', {
           method: 'POST',
-          body: { username, password, nickname: get('nickname').trim() },
+          body: { username, password, nickname: get('nickname').trim(), email: get('email').trim() },
         });
-        // 바로 앱으로 들어가지 않고 고유 코드를 먼저 보여준다
-        setCreatedUser(user);
-        switchMode('created');
+        onAuthed(user);
       } else if (mode === 'login') {
         const { user } = await api<{ user: User }>('/api/auth/login', { method: 'POST', body: { username, password } });
         onAuthed(user);
       } else if (mode === 'reset') {
-        const res = await api<{ password: string }>('/api/auth/find-password', {
+        const res = await api<{ email: string }>('/api/auth/find-password', {
           method: 'POST',
-          body: { username, recovery_code: get('recovery_code') },
+          body: { username, email: get('email').trim() },
         });
         setLastUsername(username);
-        setFoundPassword(res.password);
-        switchMode('resetDone');
+        setSentTo(res.email);
+        switchMode('resetSent');
       }
     } catch (err) {
       setError(errorText(err));
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const copyText = async (code: string) => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-    } catch {
-      setError('복사하지 못했어요. 코드를 직접 적어 두세요.');
     }
   };
 
@@ -122,56 +108,22 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
       );
     }
 
-    // ── 가입 완료: 고유 코드 안내 ──
-    if (mode === 'created' && createdUser) {
+    // ── 비밀번호 찾기 완료: 메일 발송 안내 ──
+    if (mode === 'resetSent') {
       return (
         <>
-          <h1 className="auth-title">가입을 축하해요, {createdUser.nickname}님! 🎉</h1>
-          <p className="auth-sub">아래는 나만의 고유 코드예요. 비밀번호를 잊어버렸을 때 필요해요.</p>
-
+          <h1 className="auth-title">메일을 보냈어요 ✉️</h1>
+          <p className="auth-sub">
+            <strong>{sentTo}</strong> 으로 임시 비밀번호를 보냈어요.
+          </p>
           <div className="recovery-box" style={{ marginTop: 20 }}>
-            <div className="recovery-head">
-              <strong style={{ fontSize: 13 }}>고유 코드</strong>
-              <button className="text-btn" onClick={() => copyText(createdUser.recovery_code)}>
-                {copied ? '복사됨 ✓' : '복사'}
-              </button>
-            </div>
-            <div className="recovery-code">{createdUser.recovery_code}</div>
-            <p className="recovery-note">
-              이 코드와 아이디로 비밀번호를 다시 설정할 수 있어요. 다른 사람에게 알려 주지 말고 꼭 따로 기록해 두세요.
-              (나중에 설정 화면에서도 다시 확인할 수 있어요)
+            <p className="recovery-note" style={{ fontSize: 12 }}>
+              · 메일에 있는 임시 비밀번호로 로그인해 주세요. <b>30분 동안</b> 사용할 수 있어요.<br />
+              · 메일이 안 보이면 스팸함도 확인해 주세요.<br />
+              · 원래 비밀번호가 기억났다면 그대로 로그인해도 돼요.<br />
+              · 로그인한 뒤 설정 → 내 계정에서 원하는 비밀번호로 바꿀 수 있어요.
             </p>
           </div>
-
-          {error && <div className="auth-error" role="alert" style={{ marginTop: 12 }}>{error}</div>}
-
-          <button className="btn-primary auth-btn" style={{ marginTop: 20 }} onClick={() => onAuthed(createdUser)}>
-            기록했어요, 시작하기
-          </button>
-        </>
-      );
-    }
-
-    // ── 비밀번호 찾기 완료: 찾은 비밀번호 안내 ──
-    if (mode === 'resetDone' && foundPassword) {
-      return (
-        <>
-          <h1 className="auth-title">비밀번호를 찾았어요</h1>
-          <p className="auth-sub">{lastUsername} 계정에 설정한 비밀번호예요.</p>
-
-          <div className="recovery-box" style={{ marginTop: 20 }}>
-            <div className="recovery-head">
-              <strong style={{ fontSize: 13 }}>비밀번호</strong>
-              <button className="text-btn" onClick={() => copyText(foundPassword)}>
-                {copied ? '복사됨 ✓' : '복사'}
-              </button>
-            </div>
-            <div className="recovery-code found-password">{foundPassword}</div>
-            <p className="recovery-note">주변에 다른 사람이 없는지 확인하고, 확인한 뒤에는 이 화면을 닫아 주세요.</p>
-          </div>
-
-          {error && <div className="auth-error" role="alert" style={{ marginTop: 12 }}>{error}</div>}
-
           <button className="btn-primary auth-btn" style={{ marginTop: 20 }} onClick={() => switchMode('login')}>
             로그인하러 가기
           </button>
@@ -180,9 +132,8 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
     }
 
     // ── 로그인 / 회원가입 / 비밀번호 찾기 폼 ──
-    const formMode = mode as keyof typeof TITLES;
-    const [title, sub] = TITLES[formMode];
-    const isNewPassword = mode === 'signup';
+    const [title, sub] = TITLES[mode];
+    const isSignup = mode === 'signup';
 
     return (
       <>
@@ -194,7 +145,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
 
         {/* key로 모드가 바뀔 때 입력값 초기화 */}
         <form key={mode} className="auth-form" onSubmit={handleSubmit}>
-          {mode === 'signup' && (
+          {isSignup && (
             <div className="field">
               <label htmlFor="auth-nickname">이름 (화면에 표시)</label>
               <input id="auth-nickname" name="nickname" required maxLength={20} placeholder="예: 김민지" autoComplete="nickname" />
@@ -211,26 +162,25 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
               autoCapitalize="none"
               spellCheck={false}
               defaultValue={mode === 'login' ? lastUsername : undefined}
-              {...(mode === 'signup'
+              {...(isSignup
                 ? { minLength: 4, maxLength: 20, pattern: '[a-z0-9_]{4,20}', title: '영문 소문자, 숫자, 밑줄(_) 4~20자' }
                 : {})}
-              placeholder={mode === 'signup' ? '영문 소문자·숫자·_ 4~20자' : '아이디'}
+              placeholder={isSignup ? '영문 소문자·숫자·_ 4~20자' : '아이디'}
             />
           </div>
-          {mode === 'reset' && (
+          {(isSignup || mode === 'reset') && (
             <div className="field">
-              <label htmlFor="auth-code">고유 코드</label>
+              <label htmlFor="auth-email">이메일</label>
               <input
-                id="auth-code"
-                name="recovery_code"
+                id="auth-email"
+                name="email"
+                type="email"
                 required
-                maxLength={6}
-                minLength={6}
-                autoCapitalize="characters"
-                autoComplete="off"
+                maxLength={100}
+                autoComplete="email"
+                autoCapitalize="none"
                 spellCheck={false}
-                placeholder="영문+숫자 6자리 (예: A7K2Q9)"
-                style={{ textTransform: 'uppercase', letterSpacing: 2 }}
+                placeholder="example@gmail.com"
               />
             </div>
           )}
@@ -242,13 +192,13 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
                 name="password"
                 type="password"
                 required
-                autoComplete={isNewPassword ? 'new-password' : 'current-password'}
-                {...(isNewPassword ? { minLength: 8, maxLength: 64 } : {})}
-                placeholder={isNewPassword ? '영문+숫자 포함 8자 이상' : '비밀번호'}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+                {...(isSignup ? { minLength: 8, maxLength: 64 } : {})}
+                placeholder={isSignup ? '영문+숫자 포함 8자 이상' : '비밀번호'}
               />
             </div>
           )}
-          {isNewPassword && (
+          {isSignup && (
             <div className="field">
               <label htmlFor="auth-password2">비밀번호 확인</label>
               <input id="auth-password2" name="password_confirm" type="password" required autoComplete="new-password" placeholder="비밀번호를 한 번 더 입력" />
@@ -260,7 +210,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
           <button type="submit" className="btn-primary auth-btn" disabled={submitting}>
             {submitting
               ? '처리 중…'
-              : mode === 'signup' ? '가입하기' : mode === 'reset' ? '비밀번호 찾기' : '로그인'}
+              : isSignup ? '가입하고 시작하기' : mode === 'reset' ? '임시 비밀번호 메일 받기' : '로그인'}
           </button>
         </form>
 
@@ -271,7 +221,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
           </p>
         )}
         <p className="auth-switch">
-          {mode === 'signup' ? '이미 계정이 있나요?' : mode === 'reset' ? '비밀번호가 기억났나요?' : '아직 계정이 없나요?'}{' '}
+          {isSignup ? '이미 계정이 있나요?' : mode === 'reset' ? '비밀번호가 기억났나요?' : '아직 계정이 없나요?'}{' '}
           <button className="text-btn" onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}>
             {mode === 'login' ? '회원가입' : '로그인'}
           </button>
@@ -293,7 +243,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
           </div>
         </div>
 
-        {notice && mode !== 'created' && mode !== 'resetDone' && <div className="auth-error" role="alert">{notice}</div>}
+        {notice && mode !== 'resetSent' && <div className="auth-error" role="alert">{notice}</div>}
 
         {renderBody()}
       </div>

@@ -1,44 +1,29 @@
 import { connectToDatabase } from '@/lib/mongodb';
-import {
-  createSession, encryptPassword, generateUniqueRecoveryCode, hashPassword, isDuplicateKeyError, validateSignup,
-} from '@/lib/auth';
+import { createSession, hashPassword, isDuplicateKeyError, normalizeEmail, toSessionUser, validateSignup } from '@/lib/auth';
 import { handleApiError, jsonError } from '@/lib/api';
 import User from '@/models/User';
 
 const usernameTaken = () => jsonError('이미 사용 중인 아이디입니다.', 409, 'USERNAME_TAKEN');
 
-// POST /api/auth/signup - 회원가입(고유 코드 발급) 후 바로 로그인
+// POST /api/auth/signup - 회원가입(아이디·비밀번호·이름·이메일) 후 바로 로그인
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const username = String(body?.username ?? '').trim().toLowerCase();
     const password = String(body?.password ?? '');
     const nickname = String(body?.nickname ?? '').trim();
+    const email = normalizeEmail(String(body?.email ?? ''));
 
-    const invalid = validateSignup(username, password, nickname);
+    const invalid = validateSignup(username, password, nickname, email);
     if (invalid) return jsonError(invalid, 400, 'VALIDATION');
 
     await connectToDatabase();
     if (await User.exists({ username })) return usernameTaken();
 
-    const password_hash = await hashPassword(password);
-    const password_enc = encryptPassword(password) ?? undefined; // 비밀번호 찾기용 암호화 사본
+    const user = await User.create({ username, nickname, email, password_hash: await hashPassword(password) });
+    await createSession(user._id);
 
-    // 고유 코드가 다른 계정과 겹치면(unique 인덱스 충돌) 새 코드로 다시 시도
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const recovery_code = await generateUniqueRecoveryCode();
-      try {
-        const user = await User.create({ username, nickname, password_hash, password_enc, recovery_code });
-        await createSession(user._id);
-        return Response.json(
-          { user: { id: String(user._id), username, nickname, recovery_code } },
-          { status: 201 }
-        );
-      } catch (error) {
-        if (!isDuplicateKeyError(error, 'recovery_code')) throw error;
-      }
-    }
-    throw new Error('고유 코드 발급에 계속 실패했습니다.');
+    return Response.json({ user: toSessionUser(user) }, { status: 201 });
   } catch (error) {
     // 동시에 같은 아이디로 가입한 경우 (unique 인덱스 충돌)
     if (isDuplicateKeyError(error, 'username')) return usernameTaken();

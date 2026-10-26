@@ -1,7 +1,5 @@
 import { connectToDatabase } from '@/lib/mongodb';
-import {
-  createSession, encryptPassword, getSessionUser, hashPassword, validatePassword, verifyPassword,
-} from '@/lib/auth';
+import { createSession, getSessionUser, hashPassword, validatePassword, verifyPassword } from '@/lib/auth';
 import { handleApiError, jsonError, unauthorized } from '@/lib/api';
 import Session from '@/models/Session';
 import User from '@/models/User';
@@ -26,7 +24,8 @@ export async function PUT(request: Request) {
     }
 
     user.password_hash = await hashPassword(next);
-    user.password_enc = encryptPassword(next) ?? undefined;
+    user.temp_password_hash = null;
+    user.temp_password_expires_at = null;
     await user.save();
 
     // 다른 기기의 로그인은 끊고, 지금 기기는 새 세션으로 로그인 유지

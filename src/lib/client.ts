@@ -4,7 +4,7 @@ export interface User {
   id: string;
   username: string;
   nickname: string;
-  recovery_code: string; // 비밀번호 찾기용 고유 코드
+  email: string | null; // 비밀번호 찾기 메일 주소 (예전 계정은 null)
 }
 
 export class ApiError extends Error {
