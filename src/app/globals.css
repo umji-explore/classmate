@@ -1758,12 +1758,18 @@ a {
   color: var(--muted);
 }
 
-.auth-info {
-  background: var(--teal-soft);
-  border: 1px solid #c4ebe3;
-  color: #1d7d6c;
+.account-form {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbfe;
+}
+
+.account-form input {
+  height: 40px;
+  border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 0 12px;
 }

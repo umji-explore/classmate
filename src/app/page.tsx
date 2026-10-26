@@ -127,6 +127,7 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   // ── Toast helper ──────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
@@ -172,6 +173,25 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
       // 서버 오류가 나도 화면에서는 로그아웃 처리
     }
     onSignedOut();
+  };
+
+  const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const get = (k: string) => String(fd.get(k) ?? '');
+    if (get('new_password') !== get('new_password_confirm')) {
+      return showToast('새 비밀번호 확인이 일치하지 않습니다.');
+    }
+    try {
+      await api('/api/auth/password', {
+        method: 'PUT',
+        body: { current_password: get('current_password'), new_password: get('new_password') },
+      });
+      setPwOpen(false);
+      showToast('비밀번호를 변경했어요.');
+    } catch (err) {
+      showToast(errorMessage(err, '비밀번호를 변경하지 못했습니다.'));
+    }
   };
 
   const handleWithdraw = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -923,6 +943,22 @@ function ClassMateApp({ user, onSignedOut }: { user: User; onSignedOut: () => vo
             </p>
           </div>
           <div style={{ display: 'grid', gap: '10px', marginTop: 16 }}>
+            {pwOpen ? (
+              <form className="account-form" onSubmit={handleChangePassword}>
+                <strong style={{ fontSize: 13 }}>비밀번호 변경</strong>
+                <input name="current_password" type="password" required autoComplete="current-password" placeholder="현재 비밀번호 (임시 비밀번호)" aria-label="현재 비밀번호" />
+                <input name="new_password" type="password" required minLength={8} maxLength={64} autoComplete="new-password" placeholder="새 비밀번호 (영문+숫자 8자 이상)" aria-label="새 비밀번호" />
+                <input name="new_password_confirm" type="password" required autoComplete="new-password" placeholder="새 비밀번호 확인" aria-label="새 비밀번호 확인" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn-secondary" onClick={() => setPwOpen(false)}>취소</button>
+                  <button type="submit" className="btn-primary">변경하기</button>
+                </div>
+              </form>
+            ) : (
+              <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => setPwOpen(true)}>
+                🔑 비밀번호 변경
+              </button>
+            )}
             <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleLogout}>
               ↪ 로그아웃
             </button>

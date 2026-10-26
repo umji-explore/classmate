@@ -4,7 +4,7 @@
 
 - **기술 스택**: Next.js 16 (App Router) · TypeScript · MongoDB Atlas (Mongoose)
 - **회원 기능**: 아이디/비밀번호로 회원가입·로그인합니다. 비밀번호는 scrypt로 암호화해 저장하고, 로그인 상태는 httpOnly 쿠키 세션(30일)으로 유지합니다.
-- **고유 코드 / 비밀번호 찾기**: 가입하면 계정마다 겹치지 않는 영문+숫자 6자리 고유 코드를 발급합니다(설정 화면에서 확인). 아이디와 고유 코드로 새 비밀번호를 설정할 수 있고, 5번 틀리면 15분 동안 잠깁니다.
+- **고유 코드 / 비밀번호 찾기**: 가입하면 계정마다 겹치지 않는 영문+숫자 6자리 고유 코드를 발급합니다(설정 화면에서 확인). 아이디와 고유 코드를 입력하면 임시 비밀번호를 발급하고(설정 화면에서 비밀번호 변경 가능), 5번 틀리면 15분 동안 잠깁니다.
 - **데이터 저장**: 모든 일정은 로그인한 사용자별로 MongoDB Atlas에 저장되어 어느 기기에서든 같은 일정을 볼 수 있습니다.
 
 ## 로컬에서 실행하기
@@ -44,7 +44,8 @@ npm run dev
 | POST | `/api/auth/signup` | 회원가입 `{ username, password, nickname }` 후 바로 로그인 |
 | POST | `/api/auth/login` | 로그인 `{ username, password }` |
 | POST | `/api/auth/logout` | 로그아웃 |
-| POST | `/api/auth/reset-password` | 비밀번호 재설정 `{ username, recovery_code, new_password }` |
+| POST | `/api/auth/reset-password` | 비밀번호 찾기 `{ username, recovery_code }` → 임시 비밀번호 발급 |
+| PUT | `/api/auth/password` | 비밀번호 변경 `{ current_password, new_password }` |
 | GET | `/api/auth/me` | 현재 로그인한 사용자 |
 | DELETE | `/api/auth/me` | 회원 탈퇴 `{ password }` (계정·일정 모두 삭제) |
 | GET | `/api/tasks?status=&search=` | 내 일정 목록 |

@@ -64,6 +64,16 @@ export function generateRecoveryCode(): string {
 
 export const normalizeRecoveryCode = (code: string) => code.replace(/[\s-]/g, '').toUpperCase();
 
+// 비밀번호 찾기 때 발급하는 임시 비밀번호 (영문 대소문자+숫자 10자리, 비밀번호 규칙 충족)
+const TEMP_CHARS = 'abcdefghjkmnpqrstuvwxyz' + CODE_LETTERS + CODE_DIGITS;
+export function generateTempPassword(): string {
+  while (true) {
+    let pw = '';
+    for (let i = 0; i < 10; i++) pw += TEMP_CHARS[randomInt(TEMP_CHARS.length)];
+    if (/[a-zA-Z]/.test(pw) && /[0-9]/.test(pw)) return pw;
+  }
+}
+
 // MongoDB unique 인덱스 충돌 에러인지 (field를 주면 그 필드의 충돌인지까지 확인)
 export function isDuplicateKeyError(error: unknown, field?: string): boolean {
   const e = error as { code?: number; keyPattern?: Record<string, unknown> };
