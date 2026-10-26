@@ -1,6 +1,6 @@
 import { connectToDatabase } from '@/lib/mongodb';
 import {
-  createSession, generateUniqueRecoveryCode, hashPassword, isDuplicateKeyError, validateSignup,
+  createSession, encryptPassword, generateUniqueRecoveryCode, hashPassword, isDuplicateKeyError, validateSignup,
 } from '@/lib/auth';
 import { handleApiError, jsonError } from '@/lib/api';
 import User from '@/models/User';
@@ -22,12 +22,13 @@ export async function POST(request: Request) {
     if (await User.exists({ username })) return usernameTaken();
 
     const password_hash = await hashPassword(password);
+    const password_enc = encryptPassword(password) ?? undefined; // 비밀번호 찾기용 암호화 사본
 
     // 고유 코드가 다른 계정과 겹치면(unique 인덱스 충돌) 새 코드로 다시 시도
     for (let attempt = 0; attempt < 5; attempt++) {
       const recovery_code = await generateUniqueRecoveryCode();
       try {
-        const user = await User.create({ username, nickname, password_hash, recovery_code });
+        const user = await User.create({ username, nickname, password_hash, password_enc, recovery_code });
         await createSession(user._id);
         return Response.json(
           { user: { id: String(user._id), username, nickname, recovery_code } },

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { BookOpen, CalendarDays, BarChart2, Bell, ArrowLeft } from 'lucide-react';
 import { api, ApiError, User } from '@/lib/client';
 
-// welcome: 첫 화면, created: 가입 직후 고유 코드 안내, reset: 비밀번호 찾기, resetDone: 임시 비밀번호 안내
+// welcome: 첫 화면, created: 가입 직후 고유 코드 안내, reset: 비밀번호 찾기, resetDone: 찾은 비밀번호 안내
 type Mode = 'welcome' | 'login' | 'signup' | 'reset' | 'created' | 'resetDone';
 
 interface AuthScreenProps {
@@ -21,7 +21,7 @@ const FEATURES = [
 const TITLES: Record<Exclude<Mode, 'welcome' | 'created' | 'resetDone'>, [string, string]> = {
   login: ['로그인', '가입한 아이디와 비밀번호를 입력해 주세요.'],
   signup: ['회원가입', '아이디와 비밀번호를 만들어 주세요.'],
-  reset: ['비밀번호 찾기', '아이디와 가입할 때 받은 고유 코드를 입력하면 임시 비밀번호를 알려 드려요.'],
+  reset: ['비밀번호 찾기', '아이디와 가입할 때 받은 고유 코드를 입력하면 비밀번호를 알려 드려요.'],
 };
 
 const errorText = (err: unknown) =>
@@ -33,8 +33,9 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
   const [submitting, setSubmitting] = useState(false);
   const [createdUser, setCreatedUser] = useState<User | null>(null);
   const [copied, setCopied] = useState(false);
-  const [tempPassword, setTempPassword] = useState<string | null>(null);
-  const [lastUsername, setLastUsername] = useState(''); // 임시 비밀번호 발급 후 로그인 폼에 미리 채움
+  // 비밀번호 찾기 결과 (temporary: 원래 비밀번호 사본이 없는 예전 계정이라 임시 비밀번호를 발급한 경우)
+  const [found, setFound] = useState<{ password: string; temporary: boolean } | null>(null);
+  const [lastUsername, setLastUsername] = useState(''); // 비밀번호 찾기 후 로그인 폼에 미리 채움
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -70,12 +71,12 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
         const { user } = await api<{ user: User }>('/api/auth/login', { method: 'POST', body: { username, password } });
         onAuthed(user);
       } else if (mode === 'reset') {
-        const { temp_password } = await api<{ temp_password: string }>('/api/auth/reset-password', {
+        const res = await api<{ password: string; temporary?: boolean }>('/api/auth/find-password', {
           method: 'POST',
           body: { username, recovery_code: get('recovery_code') },
         });
         setLastUsername(username);
-        setTempPassword(temp_password);
+        setFound({ password: res.password, temporary: !!res.temporary });
         switchMode('resetDone');
       }
     } catch (err) {
@@ -152,25 +153,29 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
       );
     }
 
-    // ── 비밀번호 찾기 완료: 임시 비밀번호 안내 ──
-    if (mode === 'resetDone' && tempPassword) {
+    // ── 비밀번호 찾기 완료: 찾은 비밀번호 안내 ──
+    if (mode === 'resetDone' && found) {
       return (
         <>
-          <h1 className="auth-title">임시 비밀번호를 발급했어요</h1>
+          <h1 className="auth-title">{found.temporary ? '임시 비밀번호를 발급했어요' : '비밀번호를 찾았어요'}</h1>
           <p className="auth-sub">
-            보안을 위해 원래 비밀번호는 저장하지 않아서 알려 드릴 수 없어요. 아래 임시 비밀번호로 로그인해 주세요.
+            {found.temporary
+              ? '예전에 가입한 계정이라 원래 비밀번호를 찾을 수 없어서, 임시 비밀번호로 바꿔 드렸어요.'
+              : `${lastUsername} 계정의 비밀번호예요.`}
           </p>
 
           <div className="recovery-box" style={{ marginTop: 20 }}>
             <div className="recovery-head">
-              <strong style={{ fontSize: 13 }}>임시 비밀번호</strong>
-              <button className="text-btn" onClick={() => copyText(tempPassword)}>
+              <strong style={{ fontSize: 13 }}>{found.temporary ? '임시 비밀번호' : '비밀번호'}</strong>
+              <button className="text-btn" onClick={() => copyText(found.password)}>
                 {copied ? '복사됨 ✓' : '복사'}
               </button>
             </div>
-            <div className="recovery-code" style={{ letterSpacing: 3 }}>{tempPassword}</div>
+            <div className="recovery-code found-password">{found.password}</div>
             <p className="recovery-note">
-              이 화면을 벗어나면 다시 볼 수 없어요. 로그인한 뒤 설정 → 내 계정에서 원하는 비밀번호로 바꿔 주세요.
+              {found.temporary
+                ? '로그인한 뒤 설정 → 내 계정에서 원하는 비밀번호로 바꿔 주세요.'
+                : '주변에 다른 사람이 없는지 확인하고, 확인한 뒤에는 이 화면을 닫아 주세요.'}
             </p>
           </div>
 
@@ -264,7 +269,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
           <button type="submit" className="btn-primary auth-btn" disabled={submitting}>
             {submitting
               ? '처리 중…'
-              : mode === 'signup' ? '가입하기' : mode === 'reset' ? '임시 비밀번호 받기' : '로그인'}
+              : mode === 'signup' ? '가입하기' : mode === 'reset' ? '비밀번호 찾기' : '로그인'}
           </button>
         </form>
 

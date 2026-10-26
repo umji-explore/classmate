@@ -1773,3 +1773,10 @@ a {
   border-radius: 10px;
   padding: 0 12px;
 }
+
+/* 찾은 비밀번호는 대소문자·특수문자가 섞일 수 있어 원래 모양 그대로, 줄바꿈 허용 */
+.recovery-code.found-password {
+  font-size: 20px;
+  letter-spacing: 1px;
+  word-break: break-all;
+}

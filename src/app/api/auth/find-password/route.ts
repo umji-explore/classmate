@@ -1,6 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import { connectToDatabase } from '@/lib/mongodb';
-import { generateTempPassword, hashPassword, normalizeRecoveryCode, RECOVERY_CODE_RULE } from '@/lib/auth';
+import {
+  decryptPassword, encryptPassword, generateTempPassword, hashPassword, isPasswordVaultEnabled,
+  normalizeRecoveryCode, RECOVERY_CODE_RULE,
+} from '@/lib/auth';
 import { handleApiError, jsonError } from '@/lib/api';
 import Session from '@/models/Session';
 import User from '@/models/User';
@@ -11,8 +14,7 @@ const LOCK_MINUTES = 15; // 이 시간 동안 비밀번호 찾기를 막는다
 const sameCode = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-// POST /api/auth/reset-password - 아이디 + 고유 코드로 본인 확인 후 임시 비밀번호 발급
-// (비밀번호는 암호화되어 저장되므로 기존 비밀번호를 알려줄 수는 없어 임시 비밀번호로 바꿔준다)
+// POST /api/auth/find-password - 아이디 + 고유 코드로 본인 확인 후 원래 비밀번호를 알려준다
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -21,6 +23,12 @@ export async function POST(request: Request) {
 
     if (!username || !RECOVERY_CODE_RULE.test(code)) {
       return jsonError('아이디와 6자리 고유 코드를 정확히 입력해 주세요.', 400, 'VALIDATION');
+    }
+
+    // 암호화 열쇠가 없으면 비밀번호를 복호화할 수 없으므로 아무것도 바꾸지 않고 중단
+    if (!isPasswordVaultEnabled()) {
+      console.error('PASSWORD_ENCRYPTION_KEY 환경 변수가 없거나 올바르지 않습니다.');
+      return jsonError('지금은 비밀번호 찾기를 사용할 수 없어요. 관리자에게 문의해 주세요.', 503, 'VAULT_NOT_CONFIGURED');
     }
 
     await connectToDatabase();
@@ -46,15 +54,22 @@ export async function POST(request: Request) {
       return mismatch();
     }
 
+    if (user.reset_failed_count || user.reset_locked_until) {
+      await User.updateOne({ _id: user._id }, { $set: { reset_failed_count: 0, reset_locked_until: null } });
+    }
+
+    // 원래 비밀번호를 복호화해서 알려준다
+    const password = decryptPassword(user.password_enc);
+    if (password) return Response.json({ password });
+
+    // 사본이 없는 경우(이 기능 전에 가입한 뒤 한 번도 로그인하지 않은 계정)에만 임시 비밀번호로 대신한다
     const tempPassword = generateTempPassword();
     await User.updateOne(
       { _id: user._id },
-      { $set: { password_hash: await hashPassword(tempPassword), reset_failed_count: 0, reset_locked_until: null } }
+      { $set: { password_hash: await hashPassword(tempPassword), password_enc: encryptPassword(tempPassword) ?? undefined } }
     );
-    // 다른 기기에 남아 있는 로그인도 모두 끊는다
     await Session.deleteMany({ user: user._id });
-
-    return Response.json({ temp_password: tempPassword });
+    return Response.json({ password: tempPassword, temporary: true });
   } catch (error) {
     return handleApiError(error, '비밀번호를 찾지 못했습니다.');
   }

@@ -1,5 +1,7 @@
 import { connectToDatabase } from '@/lib/mongodb';
-import { createSession, ensureRecoveryCode, verifyDummyPassword, verifyPassword } from '@/lib/auth';
+import {
+  createSession, decryptPassword, encryptPassword, ensureRecoveryCode, verifyDummyPassword, verifyPassword,
+} from '@/lib/auth';
 import { handleApiError, jsonError } from '@/lib/api';
 import User from '@/models/User';
 
@@ -17,6 +19,12 @@ export async function POST(request: Request) {
     // 아이디가 없을 때와 비밀번호가 틀렸을 때 같은 메시지를 보여줘 아이디 존재 여부를 숨김
     const ok = user ? await verifyPassword(password, user.password_hash) : await verifyDummyPassword(password);
     if (!user || !ok) return jsonError('아이디 또는 비밀번호가 올바르지 않습니다.', 401, 'INVALID_CREDENTIALS');
+
+    // 비밀번호 찾기용 사본이 없거나(예전 계정) 열쇠가 바뀌어 읽을 수 없으면 지금 다시 저장
+    if (decryptPassword(user.password_enc) !== password) {
+      const password_enc = encryptPassword(password);
+      if (password_enc) await User.updateOne({ _id: user._id }, { $set: { password_enc } });
+    }
 
     await createSession(user._id);
     const id = String(user._id);

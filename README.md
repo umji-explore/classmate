@@ -3,8 +3,8 @@
 학생을 위한 일정·과제 관리 앱입니다. 과제·수행평가·시험·학교 행사를 등록하고, 대시보드·달력·통계로 한눈에 관리할 수 있습니다.
 
 - **기술 스택**: Next.js 16 (App Router) · TypeScript · MongoDB Atlas (Mongoose)
-- **회원 기능**: 아이디/비밀번호로 회원가입·로그인합니다. 비밀번호는 scrypt로 암호화해 저장하고, 로그인 상태는 httpOnly 쿠키 세션(30일)으로 유지합니다.
-- **고유 코드 / 비밀번호 찾기**: 가입하면 계정마다 겹치지 않는 영문+숫자 6자리 고유 코드를 발급합니다(설정 화면에서 확인). 아이디와 고유 코드를 입력하면 임시 비밀번호를 발급하고(설정 화면에서 비밀번호 변경 가능), 5번 틀리면 15분 동안 잠깁니다.
+- **회원 기능**: 아이디/비밀번호로 회원가입·로그인합니다. 비밀번호는 로그인 확인용 scrypt 해시와, 비밀번호 찾기용 AES-256-GCM 암호화 사본으로 저장하고, 로그인 상태는 httpOnly 쿠키 세션(30일)으로 유지합니다.
+- **고유 코드 / 비밀번호 찾기**: 가입하면 계정마다 겹치지 않는 영문+숫자 6자리 고유 코드를 발급합니다(설정 화면에서 확인). 아이디와 고유 코드를 입력하면 원래 비밀번호를 알려 줍니다(설정 화면에서 비밀번호 변경 가능). 5번 틀리면 15분 동안 잠깁니다.
 - **데이터 저장**: 모든 일정은 로그인한 사용자별로 MongoDB Atlas에 저장되어 어느 기기에서든 같은 일정을 볼 수 있습니다.
 
 ## 로컬에서 실행하기
@@ -30,7 +30,7 @@ npm run dev
 
 1. GitHub에 코드를 push 합니다.
 2. Vercel에서 **Add New → Project** 로 저장소를 가져옵니다.
-3. **Settings → Environment Variables** 에 `MONGODB_URI` 를 추가합니다. (Production / Preview 모두 체크)
+3. **Settings → Environment Variables** 에 `MONGODB_URI` 와 `PASSWORD_ENCRYPTION_KEY`(비밀번호 찾기용 암호화 열쇠, `.env.example` 참고)를 추가합니다. 열쇠는 한 번 정하면 바꾸지 마세요.
 4. **Deployments** 에서 **Redeploy** 합니다. (환경 변수는 새로 배포해야 적용됩니다)
 
 배포 후 시작 화면에서 회원가입이 되면 성공입니다. DB 연결에 문제가 있으면 시작 화면 위쪽에 오류 메시지가 표시됩니다.
@@ -44,7 +44,7 @@ npm run dev
 | POST | `/api/auth/signup` | 회원가입 `{ username, password, nickname }` 후 바로 로그인 |
 | POST | `/api/auth/login` | 로그인 `{ username, password }` |
 | POST | `/api/auth/logout` | 로그아웃 |
-| POST | `/api/auth/reset-password` | 비밀번호 찾기 `{ username, recovery_code }` → 임시 비밀번호 발급 |
+| POST | `/api/auth/find-password` | 비밀번호 찾기 `{ username, recovery_code }` → 비밀번호 반환 |
 | PUT | `/api/auth/password` | 비밀번호 변경 `{ current_password, new_password }` |
 | GET | `/api/auth/me` | 현재 로그인한 사용자 |
 | DELETE | `/api/auth/me` | 회원 탈퇴 `{ password }` (계정·일정 모두 삭제) |

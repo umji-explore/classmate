@@ -1,4 +1,6 @@
-import { createHash, randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto';
+import {
+  createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, scrypt, timingSafeEqual,
+} from 'node:crypto';
 import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
@@ -24,6 +26,44 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const expected = Buffer.from(hashHex, 'hex');
   const actual = await scryptAsync(password, Buffer.from(saltHex, 'hex'), expected.length);
   return timingSafeEqual(expected, actual);
+}
+
+// ── 비밀번호 찾기용 암호화 보관 ─────────────────────────────────
+// 로그인 확인은 위의 scrypt 해시로 하고, "비밀번호 찾기"에서 원래 비밀번호를 보여주기 위해
+// AES-256-GCM으로 암호화한 사본을 따로 저장한다. 열쇠(PASSWORD_ENCRYPTION_KEY)는 DB가 아닌
+// 환경 변수에만 있으므로 DB만 유출돼서는 비밀번호를 알 수 없다.
+// 열쇠를 바꾸거나 잃어버리면 기존 사본은 복호화할 수 없으니 주의.
+function getEncryptionKey(): Buffer | null {
+  const raw = process.env.PASSWORD_ENCRYPTION_KEY;
+  if (!raw) return null;
+  const key = Buffer.from(raw, 'base64');
+  return key.length === 32 ? key : null;
+}
+
+export const isPasswordVaultEnabled = () => getEncryptionKey() !== null;
+
+// 저장 형식: v1:<iv>:<auth tag>:<암호문> (모두 base64)
+export function encryptPassword(password: string): string | null {
+  const key = getEncryptionKey();
+  if (!key) return null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(password, 'utf8'), cipher.final()]);
+  return ['v1', iv, cipher.getAuthTag(), encrypted].map((x) => (typeof x === 'string' ? x : x.toString('base64'))).join(':');
+}
+
+export function decryptPassword(stored: string | null | undefined): string | null {
+  const key = getEncryptionKey();
+  if (!key || !stored) return null;
+  const [version, iv, tag, data] = stored.split(':');
+  if (version !== 'v1' || !iv || !tag || !data) return null;
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    return Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString('utf8');
+  } catch {
+    return null; // 열쇠가 바뀌었거나 데이터가 손상된 경우
+  }
 }
 
 // 존재하지 않는 아이디로 로그인할 때도 비슷한 시간이 걸리게 해 아이디 존재 여부를 숨긴다
@@ -64,7 +104,7 @@ export function generateRecoveryCode(): string {
 
 export const normalizeRecoveryCode = (code: string) => code.replace(/[\s-]/g, '').toUpperCase();
 
-// 비밀번호 찾기 때 발급하는 임시 비밀번호 (영문 대소문자+숫자 10자리, 비밀번호 규칙 충족)
+// 원래 비밀번호 사본이 없는 예전 계정의 비밀번호 찾기 때만 발급하는 임시 비밀번호 (영문 대소문자+숫자 10자리)
 const TEMP_CHARS = 'abcdefghjkmnpqrstuvwxyz' + CODE_LETTERS + CODE_DIGITS;
 export function generateTempPassword(): string {
   while (true) {
