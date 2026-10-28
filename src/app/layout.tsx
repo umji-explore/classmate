@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { APPEARANCE_BOOT_SCRIPT } from '@/lib/appearance';
 
 export const metadata: Metadata = {
   title: 'ClassMate — 학교 일정·과제 관리',
@@ -18,7 +19,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    // 테마·모드는 아래 스크립트가 그리기 전에 <html>에 붙이므로 서버 HTML과 달라도 경고하지 않음
+    <html lang="ko" data-theme="default" data-mode="light" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOT_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

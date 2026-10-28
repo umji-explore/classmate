@@ -14,6 +14,8 @@ import {
 import { dayDiff, fmtDate, getTodayISO, offsetDate, toLocalISO } from '@/lib/date';
 import { api, ApiError, UNAUTHORIZED_EVENT, User } from '@/lib/client';
 import AuthScreen from '@/components/AuthScreen';
+import AppearanceSettings from '@/components/AppearanceSettings';
+import { applyAppearance, calendarBackgroundCss, Preferences } from '@/lib/appearance';
 
 // ─── Helpers ──────────────────────────────────────────────────
 type Page = 'dashboard' | 'calendar' | 'tasks' | 'stats' | 'settings';
@@ -135,6 +137,21 @@ function ClassMateApp({
     const timer = setTimeout(() => setToastShow(false), 2600);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // ── 꾸미기: 계정에 저장된 색 테마·화면 모드를 화면에 적용 ─────────────
+  const preferences = user.preferences;
+  const { theme, mode } = preferences;
+  useEffect(() => {
+    applyAppearance(theme, mode);
+    if (mode !== 'system') return;
+    // '기기 설정 따르기'일 때는 기기의 다크 모드 전환을 바로 따라간다
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onSystemChange = () => applyAppearance(theme, mode);
+    media.addEventListener('change', onSystemChange);
+    return () => media.removeEventListener('change', onSystemChange);
+  }, [theme, mode]);
+
+  const setPreferences = (next: Preferences) => onUserChange({ ...user, preferences: next });
 
   // ── Load tasks ────────────────────────────────────────────────
   useEffect(() => {
@@ -593,6 +610,7 @@ function ClassMateApp({
       setCalYear(now.getFullYear());
       setCalMonth(now.getMonth());
     };
+    const calBg = calendarBackgroundCss(preferences);
 
     return (
       <section className="page-section">
@@ -615,49 +633,52 @@ function ClassMateApp({
               <h3 style={{ minWidth: 110, textAlign: 'center' }}>{calYear}년 {calMonth + 1}월</h3>
               <button className="cal-nav-btn" onClick={() => moveMonth(1)} aria-label="다음 달"><ChevronRight size={16} /></button>
               <button className="text-btn" onClick={goToday}>오늘</button>
+              <button className="text-btn" onClick={() => navigate('settings')}>🎨 꾸미기</button>
             </div>
           </div>
 
-          <div className="cal-grid">
-            {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
-              <div key={w} className="cal-weekday">{w}</div>
-            ))}
-            {calDays.map(({ iso, day, isCurrentMonth, isToday }) => {
-              const dayTasks = tasks.filter((t) => t.due_date === iso);
-              return (
-                // 안에 일정 버튼이 들어가므로 칸 자체는 div로 두고 버튼 역할을 부여한다
-                <div
-                  key={iso}
-                  role="button"
-                  tabIndex={0}
-                  className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}
-                  onClick={() => openDay(iso, dayTasks)}
-                  onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
-                    e.preventDefault();
-                    openDay(iso, dayTasks);
-                  }}
-                  aria-label={`${iso}, 일정 ${dayTasks.length}개, ${dayTasks.length ? '눌러서 일정 수정' : '눌러서 일정 추가'}`}
-                >
-                  <span className="day-num">{day}</span>
-                  <div className="day-events">
-                    {dayTasks.map((t) => (
-                      <button
-                        key={t._id}
-                        className={`day-event-pill ${KIND_COLOR[t.kind]}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEdit(t);
-                        }}
-                        aria-label={`${t.title} 수정`}
-                      >
-                        {t.title}
-                      </button>
-                    ))}
+          <div className={`cal-canvas ${calBg ? 'has-bg' : ''}`} style={calBg ? { background: calBg } : undefined}>
+            <div className="cal-grid">
+              {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
+                <div key={w} className="cal-weekday">{w}</div>
+              ))}
+              {calDays.map(({ iso, day, isCurrentMonth, isToday }) => {
+                const dayTasks = tasks.filter((t) => t.due_date === iso);
+                return (
+                  // 안에 일정 버튼이 들어가므로 칸 자체는 div로 두고 버튼 역할을 부여한다
+                  <div
+                    key={iso}
+                    role="button"
+                    tabIndex={0}
+                    className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}
+                    onClick={() => openDay(iso, dayTasks)}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                      e.preventDefault();
+                      openDay(iso, dayTasks);
+                    }}
+                    aria-label={`${iso}, 일정 ${dayTasks.length}개, ${dayTasks.length ? '눌러서 일정 수정' : '눌러서 일정 추가'}`}
+                  >
+                    <span className="day-num">{day}</span>
+                    <div className="day-events">
+                      {dayTasks.map((t) => (
+                        <button
+                          key={t._id}
+                          className={`day-event-pill ${KIND_COLOR[t.kind]}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(t);
+                          }}
+                          aria-label={`${t.title} 수정`}
+                        >
+                          {t.title}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -890,10 +911,16 @@ function ClassMateApp({
       <div className="welcome-row">
         <div>
           <h2>설정</h2>
-          <p>내 계정과 일정 데이터를 관리합니다.</p>
+          <p>앱을 꾸미고, 내 계정과 일정 데이터를 관리합니다.</p>
         </div>
       </div>
       <div className="settings-grid">
+        <AppearanceSettings
+          preferences={preferences}
+          onChange={setPreferences}
+          showToast={showToast}
+          onOpenCalendar={() => navigate('calendar')}
+        />
         <div className="card card-body">
           <div className="card-header">
             <div>

@@ -3,7 +3,8 @@ import { promisify } from 'node:util';
 import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/mongodb';
 import Session from '@/models/Session';
-import User, { IUserDocument } from '@/models/User';
+import User, { IUser, IUserDocument } from '@/models/User';
+import { normalizePreferences, Preferences } from '@/lib/appearance';
 
 const scryptAsync = promisify(scrypt) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
@@ -105,13 +106,21 @@ export interface SessionUser {
   username: string;
   nickname: string;
   email: string | null; // 이메일 기능 전에 가입한 계정은 null
+  preferences: Preferences; // 꾸미기 설정
 }
 
-export const toSessionUser = (user: { _id: unknown; username: string; nickname: string; email?: string | null }): SessionUser => ({
+export const toSessionUser = (user: {
+  _id: unknown;
+  username: string;
+  nickname: string;
+  email?: string | null;
+  preferences?: IUser['preferences'];
+}): SessionUser => ({
   id: String(user._id),
   username: user.username,
   nickname: user.nickname,
   email: user.email ?? null,
+  preferences: normalizePreferences(user.preferences),
 });
 
 // 현재 요청의 로그인 사용자 (없으면 null)
@@ -123,6 +132,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await Session.findOne({ token_hash: hashToken(token), expires_at: { $gt: new Date() } }).lean();
   if (!session) return null;
 
-  const user = await User.findById(session.user).select('username nickname email').lean();
+  const user = await User.findById(session.user).select('username nickname email preferences').lean();
   return user ? toSessionUser(user) : null;
 }

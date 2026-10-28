@@ -11,6 +11,14 @@ export interface IUser {
   reset_email_sent_at: Date | null; // 마지막으로 비밀번호 찾기 메일을 보낸 시각 (연속 발송 방지)
   reset_failed_count: number; // 비밀번호 찾기 연속 실패 횟수
   reset_locked_until: Date | null; // 실패가 많을 때 비밀번호 찾기를 잠시 막는 시각
+  // 꾸미기 설정 (값 검사는 lib/appearance의 normalizePreferences에서 함)
+  preferences?: {
+    theme?: string;
+    mode?: string;
+    calendar_bg?: string;
+    calendar_bg_color?: string;
+    calendar_bg_image_version?: number | null;
+  };
 }
 
 export interface IUserDocument extends IUser, Document {}
@@ -33,6 +41,13 @@ const UserSchema = new Schema<IUserDocument>(
     reset_email_sent_at: { type: Date, default: null },
     reset_failed_count: { type: Number, default: 0 },
     reset_locked_until: { type: Date, default: null },
+    preferences: {
+      theme: String,
+      mode: String,
+      calendar_bg: String,
+      calendar_bg_color: String,
+      calendar_bg_image_version: { type: Number, default: null },
+    },
   },
   { timestamps: true }
 );

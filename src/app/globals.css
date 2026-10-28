@@ -9,17 +9,34 @@
   --line: #e7eaf2;
   --navy: #222d52;
   --navy-dark: #1a2340;
+  --ink-2: #5a6680;
+  --faint: #9ea6b7;
+  --faint-2: #c2c7d2;
+  --line-soft: #f0f2f7;
+  --line-strong: #d4d9e8;
+  --surface-soft: #f6f7fb;
   --blue: #536dfe;
+  --blue-rgb: 83, 109, 254;
   --blue-hover: #4059ee;
+  --blue-light: #8998ff;
   --blue-soft: #eef0ff;
+  --blue-tint: #f6f7ff;
+  --blue-line: #d6dcff;
   --teal: #29a994;
   --teal-soft: #e8f8f4;
+  --teal-ink: #218c7b;
   --amber: #efa63b;
-  --amber-soft: #fff5e4;
+  --amber-soft: #fff4e0;
+  --amber-ink: #ba7d17;
   --red: #e36b73;
   --red-soft: #fff0f0;
+  --red-line: #f6d3d6;
+  --red-ink: #b4434c;
   --green: #34a853;
   --purple: #8e78d3;
+  --purple-soft: #f3efff;
+  --purple-ink: #6e58c0;
+  --cal-cell: color-mix(in srgb, var(--panel) 82%, transparent);
   --shadow: 0 8px 24px rgba(33, 45, 82, 0.06);
   --shadow-lg: 0 20px 48px rgba(33, 45, 82, 0.1);
   --radius: 18px;
@@ -28,6 +45,104 @@
   --sidebar-width: 240px;
   --topbar-height: 72px;
   --transition: 0.18s ease;
+}
+
+/* ─── 색 테마 (설정 > 꾸미기) ───────────────────────────────────── */
+:root[data-theme='lavender'] {
+  --bg: #f6f4fc;
+  --navy: #3a2d63;
+  --navy-dark: #2c2150;
+  --blue: #8b6cf0;
+  --blue-rgb: 139, 108, 240;
+  --blue-hover: #7655e6;
+  --blue-light: #b4a0ff;
+  --blue-soft: #f2eeff;
+  --blue-tint: #f8f6ff;
+  --blue-line: #e0d7ff;
+}
+
+:root[data-theme='mint'] {
+  --bg: #f1f8f7;
+  --navy: #17464a;
+  --navy-dark: #10373a;
+  --blue: #1fa79a;
+  --blue-rgb: 31, 167, 154;
+  --blue-hover: #188f84;
+  --blue-light: #5fcfc3;
+  --blue-soft: #e4f6f3;
+  --blue-tint: #f2fbf9;
+  --blue-line: #c4ebe5;
+}
+
+:root[data-theme='peach'] {
+  --bg: #fcf6f3;
+  --navy: #5a3027;
+  --navy-dark: #46241d;
+  --blue: #f07a5a;
+  --blue-rgb: 240, 122, 90;
+  --blue-hover: #e3623f;
+  --blue-light: #ffab93;
+  --blue-soft: #fff0eb;
+  --blue-tint: #fff8f5;
+  --blue-line: #ffd9cd;
+}
+
+:root[data-theme='forest'] {
+  --bg: #f3f7f2;
+  --navy: #22412c;
+  --navy-dark: #193321;
+  --blue: #3f9a5b;
+  --blue-rgb: 63, 154, 91;
+  --blue-hover: #328249;
+  --blue-light: #7cc792;
+  --blue-soft: #e9f5ec;
+  --blue-tint: #f4faf5;
+  --blue-line: #cbe8d3;
+}
+
+:root[data-theme='cherry'] {
+  --bg: #fcf4f6;
+  --navy: #55223a;
+  --navy-dark: #42192d;
+  --blue: #e0567f;
+  --blue-rgb: 224, 86, 127;
+  --blue-hover: #cf3f6a;
+  --blue-light: #f493b0;
+  --blue-soft: #fdebf0;
+  --blue-tint: #fff6f8;
+  --blue-line: #f8cfdb;
+}
+
+/* ─── 다크 모드 — 색 테마 뒤에 두어 테마의 포인트 색(--blue-rgb)을 그대로 활용 ─── */
+:root[data-mode='dark'] {
+  color-scheme: dark;
+  --bg: #0f1320;
+  --panel: #181d2c;
+  --ink: #e7eaf3;
+  --ink-2: #bcc3d6;
+  --muted: #8d96ab;
+  --faint: #6c758a;
+  --faint-2: #4a5266;
+  --line: #2a3247;
+  --line-soft: #222a3d;
+  --line-strong: #3b4560;
+  --surface-soft: #1d2335;
+  --navy: #12172a;
+  --navy-dark: #0c1020;
+  --blue-soft: rgba(var(--blue-rgb), 0.18);
+  --blue-tint: rgba(var(--blue-rgb), 0.08);
+  --blue-line: rgba(var(--blue-rgb), 0.4);
+  --teal-soft: rgba(41, 169, 148, 0.18);
+  --teal-ink: #62d2bf;
+  --amber-soft: rgba(239, 166, 59, 0.18);
+  --amber-ink: #f3c072;
+  --red-soft: rgba(227, 107, 115, 0.16);
+  --red-line: rgba(227, 107, 115, 0.4);
+  --red-ink: #f2959b;
+  --purple-soft: rgba(142, 120, 211, 0.2);
+  --purple-ink: #bba9f2;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.4);
 }
 
 /* ─── Reset ─────────────────────────────────────────────────── */
@@ -71,7 +186,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid #aab5ff;
+  outline: 3px solid var(--blue-line);
   outline-offset: 2px;
 }
 
@@ -115,10 +230,10 @@ a {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #8797ff, #536dfe);
+  background: linear-gradient(135deg, var(--blue-light), var(--blue));
   display: grid;
   place-items: center;
-  box-shadow: 0 6px 16px rgba(83, 109, 254, 0.4);
+  box-shadow: 0 6px 16px rgba(var(--blue-rgb), 0.4);
   flex-shrink: 0;
 }
 
@@ -332,7 +447,7 @@ a {
 
 .search-bar:focus-within {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(83, 109, 254, 0.1);
+  box-shadow: 0 0 0 3px rgba(var(--blue-rgb), 0.1);
 }
 
 .search-bar input {
@@ -354,7 +469,7 @@ a {
   font-weight: 700;
   font-size: 13px;
   padding: 11px 18px;
-  box-shadow: 0 6px 16px rgba(83, 109, 254, 0.28);
+  box-shadow: 0 6px 16px rgba(var(--blue-rgb), 0.28);
   transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
   display: flex;
   align-items: center;
@@ -365,7 +480,7 @@ a {
 .btn-primary:hover {
   background: var(--blue-hover);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(83, 109, 254, 0.35);
+  box-shadow: 0 8px 20px rgba(var(--blue-rgb), 0.35);
 }
 
 .btn-secondary {
@@ -373,7 +488,7 @@ a {
   background: var(--panel);
   border-radius: 10px;
   padding: 10px 14px;
-  color: #525d75;
+  color: var(--ink-2);
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
@@ -382,7 +497,7 @@ a {
 
 .btn-secondary:hover {
   background: var(--blue-soft);
-  border-color: #d0d6ff;
+  border-color: var(--blue-line);
 }
 
 .btn-icon {
@@ -391,7 +506,7 @@ a {
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: 12px;
-  color: #68738c;
+  color: var(--muted);
   font-size: 18px;
   display: grid;
   place-items: center;
@@ -412,7 +527,7 @@ a {
   background: var(--red);
   right: 9px;
   top: 8px;
-  border: 1px solid #fff;
+  border: 1px solid var(--panel);
 }
 
 /* ─── Cards ──────────────────────────────────────────────────── */
@@ -519,11 +634,11 @@ a {
   display: inline-block;
 }
 
-.tag.blue { color: #536dfe; background: #eef0ff; }
-.tag.orange { color: #ba7d17; background: #fff3dd; }
-.tag.green { color: #218c7b; background: #e8f8f4; }
-.tag.red { color: #ce535d; background: #fff0f0; }
-.tag.purple { color: #6e58c0; background: #f3efff; }
+.tag.blue { color: var(--blue); background: var(--blue-soft); }
+.tag.orange { color: var(--amber-ink); background: var(--amber-soft); }
+.tag.green { color: var(--teal-ink); background: var(--teal-soft); }
+.tag.red { color: var(--red-ink); background: var(--red-soft); }
+.tag.purple { color: var(--purple-ink); background: var(--purple-soft); }
 
 /* ─── Task rows ──────────────────────────────────────────────── */
 .task-list {
@@ -536,7 +651,7 @@ a {
   align-items: center;
   gap: 12px;
   padding: 13px 0;
-  border-top: 1px solid #f0f2f7;
+  border-top: 1px solid var(--line-soft);
 }
 
 .task-row:first-child {
@@ -547,9 +662,9 @@ a {
 .task-check {
   width: 20px;
   height: 20px;
-  border: 1.8px solid #d4d9e8;
+  border: 1.8px solid var(--line-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--panel);
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -583,7 +698,7 @@ a {
 
 .task-title.is-done {
   text-decoration: line-through;
-  color: #a3aab9;
+  color: var(--faint);
 }
 
 .task-meta {
@@ -608,7 +723,7 @@ a {
 
 .task-due {
   font-size: 11px;
-  color: #707b93;
+  color: var(--muted);
   white-space: nowrap;
 }
 
@@ -633,14 +748,14 @@ a {
 .progress-track {
   height: 9px;
   border-radius: 99px;
-  background: #eff1f7;
+  background: var(--surface-soft);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
   border-radius: 99px;
-  background: linear-gradient(90deg, #536dfe, #8998ff);
+  background: linear-gradient(90deg, var(--blue), var(--blue-light));
   transition: width 0.4s ease;
 }
 
@@ -669,7 +784,7 @@ a {
 .bar {
   width: min(26px, 70%);
   border-radius: 7px 7px 3px 3px;
-  background: #dce2ff;
+  background: var(--blue-line);
   min-height: 4px;
   position: relative;
   transition: height 0.35s ease;
@@ -689,6 +804,8 @@ a {
 .calendar-controls {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -705,7 +822,7 @@ a {
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: 9px;
-  color: #66728a;
+  color: var(--muted);
   cursor: pointer;
   font-size: 16px;
   display: grid;
@@ -726,7 +843,7 @@ a {
 .cal-weekday {
   text-align: center;
   font-size: 10px;
-  color: #9aa2b4;
+  color: var(--faint);
   padding: 10px 0;
   font-weight: 800;
 }
@@ -736,7 +853,7 @@ a {
   border: 1px solid transparent;
   border-radius: 10px;
   padding: 7px 6px;
-  background: #fff;
+  background: var(--panel);
   text-align: left;
   position: relative;
   color: var(--ink);
@@ -746,12 +863,12 @@ a {
 }
 
 .cal-day:hover {
-  background: #f7f8ff;
-  border-color: #e4e8ff;
+  background: var(--blue-tint);
+  border-color: var(--blue-line);
 }
 
 .cal-day.other-month {
-  color: #c2c7d2;
+  color: var(--faint-2);
 }
 
 .cal-day.is-today .day-num {
@@ -792,10 +909,40 @@ a {
   text-overflow: ellipsis;
 }
 
-.day-event-pill.blue { background: #eef0ff; color: #536dfe; }
-.day-event-pill.orange { background: #fff3dd; color: #ba7d17; }
-.day-event-pill.green { background: #e8f8f4; color: #218c7b; }
+.day-event-pill.blue { background: var(--blue-soft); color: var(--blue); }
+.day-event-pill.orange { background: var(--amber-soft); color: var(--amber-ink); }
+.day-event-pill.green { background: var(--teal-soft); color: var(--teal-ink); }
 .day-event-pill:hover { filter: brightness(0.95); }
+
+/* 달력 배경 (설정 > 꾸미기) — 배경이 있으면 칸을 반투명하게 해 배경이 비쳐 보이게 한다 */
+.cal-canvas {
+  border-radius: 14px;
+}
+
+.cal-canvas.has-bg {
+  padding: 8px;
+}
+
+.cal-canvas.has-bg .cal-weekday {
+  margin: 0 6px 2px;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: var(--cal-cell);
+  color: var(--ink-2);
+}
+
+.cal-canvas.has-bg .cal-day {
+  background: var(--cal-cell);
+  backdrop-filter: blur(2px);
+}
+
+.cal-canvas.has-bg .cal-day:hover {
+  background: var(--panel);
+}
+
+.cal-canvas.has-bg .cal-day.other-month {
+  color: var(--faint);
+}
 
 /* ─── Task Table ─────────────────────────────────────────────── */
 .task-table {
@@ -805,7 +952,7 @@ a {
 
 .task-table th {
   text-align: left;
-  color: #9199ab;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 700;
   padding: 0 12px 14px;
@@ -814,7 +961,7 @@ a {
 
 .task-table td {
   padding: 14px 12px;
-  border-bottom: 1px solid #f0f2f7;
+  border-bottom: 1px solid var(--line-soft);
   font-size: 13px;
   vertical-align: middle;
 }
@@ -824,7 +971,7 @@ a {
 }
 
 .task-table tr:hover td {
-  background: #fafbfe;
+  background: var(--surface-soft);
 }
 
 .task-name {
@@ -836,9 +983,9 @@ a {
   align-items: center;
   gap: 5px;
   padding: 5px 9px;
-  background: #f5f6fa;
+  background: var(--surface-soft);
   border-radius: 7px;
-  color: #69748b;
+  color: var(--ink-2);
   font-size: 11px;
 }
 
@@ -846,9 +993,9 @@ a {
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 6px 8px;
-  background: #fff;
+  background: var(--panel);
   font-size: 11px;
-  color: #657089;
+  color: var(--ink-2);
   max-width: 110px;
   cursor: pointer;
 }
@@ -862,7 +1009,7 @@ a {
 .table-action {
   border: 0;
   background: transparent;
-  color: #8992a5;
+  color: var(--muted);
   font-size: 16px;
   padding: 6px 8px;
   border-radius: 7px;
@@ -871,12 +1018,12 @@ a {
 }
 
 .table-action:hover {
-  background: #f1f3fb;
+  background: var(--surface-soft);
 }
 
 .table-action.danger:hover {
-  background: #fff0f0;
-  color: #d45a63;
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 /* ─── Subject bars (stats) ───────────────────────────────────── */
@@ -896,7 +1043,7 @@ a {
 
 .subject-track {
   height: 10px;
-  background: #f0f2f8;
+  background: var(--surface-soft);
   border-radius: 99px;
   overflow: hidden;
 }
@@ -915,8 +1062,8 @@ a {
 
 /* ─── Insight box ────────────────────────────────────────────── */
 .insight-box {
-  background: #f5f6ff;
-  border: 1px solid #e6e9ff;
+  background: var(--blue-tint);
+  border: 1px solid var(--blue-line);
   border-radius: 14px;
   padding: 18px;
   margin-top: 20px;
@@ -930,7 +1077,7 @@ a {
 
 .insight-box p {
   font-size: 12px;
-  color: #687390;
+  color: var(--ink-2);
   line-height: 1.8;
 }
 
@@ -963,14 +1110,14 @@ a {
 }
 
 .filter-btn:hover {
-  border-color: #d0d6ff;
+  border-color: var(--blue-line);
   color: var(--blue);
 }
 
 .filter-btn.active {
   background: var(--blue-soft);
   color: var(--blue);
-  border-color: #d8ddff;
+  border-color: var(--blue-line);
 }
 
 /* ─── Modal ──────────────────────────────────────────────────── */
@@ -992,7 +1139,7 @@ a {
 }
 
 .modal {
-  background: #fff;
+  background: var(--panel);
   border-radius: 22px;
   box-shadow: 0 28px 80px rgba(17, 27, 69, 0.18);
   width: min(560px, 100%);
@@ -1028,12 +1175,12 @@ a {
 
 .close-btn {
   border: 0;
-  background: #f4f5f9;
+  background: var(--surface-soft);
   width: 34px;
   height: 34px;
   border-radius: 10px;
   font-size: 18px;
-  color: #717b90;
+  color: var(--muted);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -1042,7 +1189,7 @@ a {
 }
 
 .close-btn:hover {
-  background: #ffe4e6;
+  background: var(--red-soft);
   color: var(--red);
 }
 
@@ -1066,18 +1213,18 @@ a {
 .field label {
   font-weight: 700;
   font-size: 11px;
-  color: #4f5b73;
+  color: var(--ink-2);
 }
 
 .field input,
 .field select,
 .field textarea {
   width: 100%;
-  border: 1px solid #dfe3ed;
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 11px 13px;
   color: var(--ink);
-  background: #fff;
+  background: var(--panel);
   min-width: 0;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
@@ -1087,7 +1234,7 @@ a {
 .field textarea:focus {
   outline: none;
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(83, 109, 254, 0.1);
+  box-shadow: 0 0 0 3px rgba(var(--blue-rgb), 0.1);
 }
 
 .field textarea {
@@ -1109,7 +1256,7 @@ a {
   left: 50%;
   transform: translate(-50%, 16px);
   opacity: 0;
-  background: #212c4e;
+  background: var(--navy);
   color: #fff;
   padding: 13px 20px;
   border-radius: 12px;
@@ -1132,8 +1279,8 @@ a {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
-  background: #fafbfe;
-  border: 1px dashed #e3e7f0;
+  background: var(--surface-soft);
+  border: 1px dashed var(--line);
   border-radius: 14px;
 }
 
@@ -1198,7 +1345,7 @@ a {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  color: #626e88;
+  color: var(--ink-2);
   font-weight: 650;
   white-space: nowrap;
   font-size: 13px;
@@ -1311,7 +1458,7 @@ a {
     left: 0;
     right: 0;
     height: 68px;
-    background: #fff;
+    background: var(--panel);
     border-top: 1px solid var(--line);
     z-index: 100;
     justify-content: space-around;
@@ -1321,7 +1468,7 @@ a {
   .mobile-nav button {
     border: 0;
     background: transparent;
-    color: #9aa2b4;
+    color: var(--faint);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1379,7 +1526,7 @@ a {
 .task-row-btn {
   width: 100%;
   padding: 13px 0;
-  border-top: 1px solid #f0f2f7;
+  border-top: 1px solid var(--line-soft);
 }
 
 .task-row-btn:first-child {
@@ -1474,7 +1621,7 @@ a {
 .footer-note {
   margin-top: 32px;
   text-align: center;
-  color: #a3aab9;
+  color: var(--faint);
   font-size: 11px;
 }
 
@@ -1491,7 +1638,7 @@ a {
   align-items: center;
   gap: 12px;
   padding: 14px 0;
-  border-bottom: 1px solid #f0f2f7;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .setting-row .tag {
@@ -1523,7 +1670,7 @@ a {
 }
 
 .insight-box code {
-  background: #e9ecff;
+  background: var(--blue-soft);
   padding: 1px 5px;
   border-radius: 5px;
   font-size: 11px;
@@ -1562,8 +1709,8 @@ a {
   place-items: center;
   padding: 24px 16px;
   background:
-    radial-gradient(circle at 15% 10%, #e7eaff 0, transparent 45%),
-    radial-gradient(circle at 85% 90%, #e3f6f2 0, transparent 40%),
+    radial-gradient(circle at 15% 10%, var(--blue-soft) 0, transparent 45%),
+    radial-gradient(circle at 85% 90%, var(--teal-soft) 0, transparent 40%),
     var(--bg);
 }
 
@@ -1674,8 +1821,8 @@ a {
 
 .auth-error {
   background: var(--red-soft);
-  border: 1px solid #f6d3d6;
-  color: #b4434c;
+  border: 1px solid var(--red-line);
+  color: var(--red-ink);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 12px;
@@ -1694,15 +1841,15 @@ a {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px solid #f6d3d6;
+  border: 1px solid var(--red-line);
   border-radius: 12px;
-  background: #fffafa;
+  background: var(--red-soft);
 }
 
 .withdraw-form label {
   font-size: 12px;
   font-weight: 700;
-  color: #b4434c;
+  color: var(--red-ink);
 }
 
 .withdraw-form input {
@@ -1716,9 +1863,9 @@ a {
 .recovery-box {
   margin-top: 16px;
   padding: 14px 16px;
-  border: 1px dashed #c9d1ff;
+  border: 1px dashed var(--blue-line);
   border-radius: 14px;
-  background: #f7f8ff;
+  background: var(--blue-tint);
 }
 
 
@@ -1735,7 +1882,7 @@ a {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fafbfe;
+  background: var(--surface-soft);
 }
 
 .account-form input {
@@ -1743,5 +1890,137 @@ a {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0 12px;
+}
+
+/* ─── 꾸미기 (설정) ─────────────────────────────────────────────── */
+.settings-wide {
+  grid-column: 1 / -1;
+}
+
+.deco-section + .deco-section {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.deco-title {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.deco-sub {
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+
+.deco-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deco-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 700;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.deco-chip:hover {
+  border-color: var(--blue-line);
+}
+
+.deco-chip[aria-pressed='true'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.theme-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.bg-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.bg-tile {
+  display: flex;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  transition: border-color var(--transition);
+}
+
+.bg-tile:hover {
+  border-color: var(--blue-line);
+}
+
+.bg-tile[aria-pressed='true'],
+.bg-tile.active {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.bg-swatch {
+  position: relative;
+  height: 54px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.bg-swatch input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bg-actions .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 

@@ -1,6 +1,7 @@
 import { connectToDatabase } from '@/lib/mongodb';
 import { destroySession, getSessionUser, verifyPassword } from '@/lib/auth';
 import { handleApiError, jsonError, unauthorized } from '@/lib/api';
+import CalendarImage from '@/models/CalendarImage';
 import Session from '@/models/Session';
 import Task from '@/models/Task';
 import User from '@/models/User';
@@ -16,7 +17,7 @@ export async function GET() {
   }
 }
 
-// DELETE /api/auth/me - 회원 탈퇴 (비밀번호 재확인 후 계정·과제·세션 모두 삭제)
+// DELETE /api/auth/me - 회원 탈퇴 (비밀번호 재확인 후 계정·과제·배경 사진·세션 모두 삭제)
 export async function DELETE(request: Request) {
   try {
     const sessionUser = await getSessionUser();
@@ -30,6 +31,7 @@ export async function DELETE(request: Request) {
     }
 
     await Task.deleteMany({ owner: sessionUser.id });
+    await CalendarImage.deleteOne({ user: user._id });
     await destroySession();
     await Session.deleteMany({ user: user._id });
     await user.deleteOne();
