@@ -2081,3 +2081,93 @@ a {
     flex: 1;
   }
 }
+
+/* ─── 날짜 창 (달력에서 여러 일정 한 번에 추가) ─────────────────────── */
+.day-existing {
+  margin-bottom: 18px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.day-existing strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.day-existing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.day-existing-list .day-event-pill {
+  width: auto;
+  max-width: 100%;
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 7px;
+}
+
+.day-event-pill.is-done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.quick-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.quick-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 96px 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.quick-row input,
+.quick-row select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: var(--panel);
+  font-size: 13px;
+}
+
+.quick-row input:focus,
+.quick-row select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(var(--blue-rgb), 0.1);
+}
+
+.quick-row .table-action:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.quick-tools {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  /* 좁은 화면: 이름은 한 줄 전체, 과목·유형·지우기는 아래 줄 */
+  .quick-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .quick-row input {
+    grid-column: 1 / -1;
+  }
+}

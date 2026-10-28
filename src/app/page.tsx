@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import TaskModal from '@/components/TaskModal';
+import DayModal from '@/components/DayModal';
 import Toast from '@/components/Toast';
 import {
   Task, TaskFormData, TaskStatus, SUBJECT_COLORS, STATUS_LABEL, KIND_COLOR,
@@ -125,6 +126,7 @@ function ClassMateApp({
   const [pwOpen, setPwOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [hideDone, setHideDone] = useState(false);
+  const [dayModalDate, setDayModalDate] = useState<string | null>(null);
 
   // ── Toast helper ──────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
@@ -327,6 +329,26 @@ function ClassMateApp({
     URL.revokeObjectURL(url);
     showToast('CSV 파일을 내보냈어요.');
   };
+
+  // 날짜 창에서 여러 일정을 한 번에 추가 (서버에 배열로 보내 한 번에 저장)
+  const handleAddMany = async (items: TaskFormData[]) => {
+    if (saving) return false;
+    setSaving(true);
+    try {
+      const created = await api<Task[]>('/api/tasks', { method: 'POST', body: items });
+      setTasks((prev) => [...prev, ...created]);
+      showToast(created.length > 1 ? `일정 ${created.length}개를 추가했어요.` : '새 일정을 추가했어요.');
+      return true;
+    } catch (e) {
+      // 실패하면 창을 닫지 않아 입력한 내용을 잃지 않도록 함
+      showToast(errorMessage(e, '저장에 실패했습니다. 다시 시도해 주세요.'));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const closeDayModal = useCallback(() => setDayModalDate(null), []);
 
   const openAdd = (date?: string) => {
     setEditTask(null);
@@ -684,9 +706,9 @@ function ClassMateApp({
 
   // ── Calendar Page ─────────────────────────────────────────────
   const renderCalendar = () => {
-    // 일정이 있는 날짜는 첫 일정 수정 창을, 빈 날짜는 그 날짜로 추가 창을 연다
-    const openDay = (iso: string, dayTasks: Task[]) =>
-      dayTasks.length ? openEdit(dayTasks[0]) : openAdd(iso);
+    // 칸의 빈 곳을 누르면 그날 일정 목록과 여러 개 추가 입력칸이 있는 날짜 창을 연다
+    // (칸 안의 일정 이름을 누르면 바로 그 일정의 수정 창이 열림)
+    const openDay = (iso: string) => setDayModalDate(iso);
 
     const moveMonth = (delta: number) => {
       const d = new Date(calYear, calMonth + delta, 1);
@@ -705,7 +727,7 @@ function ClassMateApp({
         <div className="welcome-row">
           <div>
             <h2>한눈에 보는 나의 일정</h2>
-            <p>빈 날짜를 누르면 일정을 추가하고, 일정을 누르면 수정하거나 삭제할 수 있어요.</p>
+            <p>날짜를 누르면 일정을 여러 개 한 번에 추가하고, 일정 이름을 누르면 수정하거나 삭제할 수 있어요.</p>
           </div>
           <div className="date-pill">일정 {tasks.length}개</div>
         </div>
@@ -739,13 +761,13 @@ function ClassMateApp({
                     role="button"
                     tabIndex={0}
                     className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}
-                    onClick={() => openDay(iso, dayTasks)}
+                    onClick={() => openDay(iso)}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
                       e.preventDefault();
-                      openDay(iso, dayTasks);
+                      openDay(iso);
                     }}
-                    aria-label={`${iso}, 일정 ${dayTasks.length}개, ${dayTasks.length ? '눌러서 일정 수정' : '눌러서 일정 추가'}`}
+                    aria-label={`${iso}, 일정 ${dayTasks.length}개, 눌러서 일정 추가`}
                   >
                     <span className="day-num">{day}</span>
                     <div className="day-events">
@@ -1240,6 +1262,23 @@ function ClassMateApp({
         editTask={editTask}
         defaultDate={defaultDate}
         saving={saving}
+      />
+
+      {/* Day Modal — 달력 날짜를 누르면 여러 일정을 한 번에 추가 */}
+      <DayModal
+        date={dayModalDate}
+        dayTasks={dayModalDate ? tasks.filter((t) => t.due_date === dayModalDate) : []}
+        saving={saving}
+        onClose={closeDayModal}
+        onAddMany={handleAddMany}
+        onEdit={(t) => {
+          closeDayModal();
+          openEdit(t);
+        }}
+        onOpenDetail={(date) => {
+          closeDayModal();
+          openAdd(date);
+        }}
       />
 
       {/* Toast */}
