@@ -31,18 +31,6 @@ const isOverdue = (t: Task) => t.status !== 'done' && t.due_date < getTodayISO()
 const errorMessage = (e: unknown, fallback: string) =>
   e instanceof ApiError ? e.message : fallback;
 
-// 예시 데이터 — 날짜는 호출 시점 기준으로 계산 (모듈 로드 시 new Date()를 쓰면 prerender 오류)
-const makeDemoTasks = (): TaskFormData[] => [
-  { title: '수학 문제집 5단원 풀기', subject: '수학', kind: '과제', due_date: offsetDate(0), estimated_minutes: 40, status: 'doing', priority: 'normal', notes: '짝수 번호 풀이', completed_at: null },
-  { title: '과학 실험 보고서 제출', subject: '과학', kind: '수행평가', due_date: offsetDate(1), estimated_minutes: 60, status: 'todo', priority: 'high', notes: '실험 사진 포함', completed_at: null },
-  { title: '영어 단어 3과 암기', subject: '영어', kind: '과제', due_date: offsetDate(2), estimated_minutes: 25, status: 'todo', priority: 'normal', notes: '단어 30개', completed_at: null },
-  { title: '역사 발표 자료 준비', subject: '사회', kind: '수행평가', due_date: offsetDate(3), estimated_minutes: 90, status: 'doing', priority: 'high', notes: '초안 완성', completed_at: null },
-  { title: '독서 기록장 작성', subject: '국어', kind: '과제', due_date: offsetDate(-1), estimated_minutes: 30, status: 'done', priority: 'normal', notes: '인상 깊은 문장 포함', completed_at: offsetDate(-1) },
-  { title: '정보 시간 프로젝트 아이디어', subject: '정보', kind: '개인 일정', due_date: offsetDate(5), estimated_minutes: 45, status: 'todo', priority: 'normal', notes: '아이디어 3개', completed_at: null },
-  { title: '영어 듣기 평가 복습', subject: '영어', kind: '시험', due_date: offsetDate(6), estimated_minutes: 35, status: 'todo', priority: 'high', notes: '교재 2~3회 듣기', completed_at: null },
-  { title: '체육 준비물 확인', subject: '기타', kind: '학교 행사', due_date: offsetDate(4), estimated_minutes: 10, status: 'done', priority: 'normal', notes: '운동복 챙기기', completed_at: offsetDate(-2) },
-];
-
 const TIPS = [
   '과제에 예상 시간을 적어두면 하루 계획을 세우기 쉬워요.',
   '마감이 가까운 과제부터 처리하면 불안감이 줄어들어요.',
@@ -291,17 +279,6 @@ function ClassMateApp({
     }
   };
 
-  const handleLoadSamples = async () => {
-    if (tasks.length && !confirm('현재 일정에 예시 데이터 8개를 추가할까요?')) return;
-    try {
-      const created = await api<Task[]>('/api/tasks', { method: 'POST', body: makeDemoTasks() });
-      setTasks((prev) => [...prev, ...created]);
-      showToast('예시 데이터를 추가했어요.');
-    } catch (e) {
-      showToast(errorMessage(e, '예시 데이터를 추가하지 못했습니다.'));
-    }
-  };
-
   const handleDeleteAll = async () => {
     if (!tasks.length) return showToast('삭제할 일정이 없어요.');
     if (!confirm(`등록된 일정 ${tasks.length}개를 모두 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) return;
@@ -501,7 +478,6 @@ function ClassMateApp({
                   아직 등록된 일정이 없어요.
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
                     <button className="btn-primary" onClick={() => openAdd()}>＋ 첫 일정 추가</button>
-                    <button className="btn-secondary" onClick={handleLoadSamples}>예시 데이터 불러오기</button>
                   </div>
                 </div>
               ) : upcoming.length === 0 ? (
@@ -618,7 +594,7 @@ function ClassMateApp({
         <div className="welcome-row">
           <div>
             <h2>한눈에 보는 나의 일정</h2>
-            <p>날짜를 선택하면 해당 날짜의 과제를 확인할 수 있어요.</p>
+            <p>날짜를 누르면 바로 그 날짜에 일정을 추가할 수 있어요.</p>
           </div>
           <div className="date-pill">일정 {tasks.length}개</div>
         </div>
@@ -648,9 +624,12 @@ function ClassMateApp({
                   <button
                     key={iso}
                     className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''} ${iso === selectedDate ? 'selected' : ''}`}
-                    onClick={() => setSelectedDate(iso)}
-                    onDoubleClick={() => openAdd(iso)}
-                    aria-label={`${iso}, 일정 ${dayTasks.length}개`}
+                    onClick={() => {
+                      // 날짜를 누르면 선택과 동시에 그 날짜로 일정 추가 창을 연다
+                      setSelectedDate(iso);
+                      openAdd(iso);
+                    }}
+                    aria-label={`${iso}, 일정 ${dayTasks.length}개, 눌러서 일정 추가`}
                   >
                     <span className="day-num">{day}</span>
                     <div className="day-events">
@@ -670,7 +649,7 @@ function ClassMateApp({
             <div className="card-header">
               <div>
                 <h3>선택한 날짜</h3>
-                <p>날짜를 누르면 일정이 바뀝니다.</p>
+                <p>마지막으로 누른 날짜의 일정이에요.</p>
               </div>
               <button className="text-btn" onClick={() => openAdd(selectedDate)}>＋ 추가</button>
             </div>
@@ -1014,9 +993,6 @@ function ClassMateApp({
           <div style={{ display: 'grid', gap: '10px' }}>
             <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleExportCSV}>
               ↓ 과제 목록 CSV 내보내기
-            </button>
-            <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleLoadSamples}>
-              ✦ 예시 데이터 불러오기
             </button>
             <button className="btn-secondary danger-btn" style={{ textAlign: 'left', padding: '13px' }} onClick={handleDeleteAll}>
               🗑 모든 일정 삭제
