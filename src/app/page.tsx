@@ -117,7 +117,6 @@ function ClassMateApp({
   // Calendar state
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
-  const [selectedDate, setSelectedDate] = useState(getTodayISO);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -267,8 +266,9 @@ function ClassMateApp({
     );
   };
 
+  // 삭제를 진행했으면 true, 확인 창에서 취소했으면 false
   const handleDelete = async (task: Task) => {
-    if (!confirm(`"${task.title}"를 삭제할까요?`)) return;
+    if (!confirm(`"${task.title}"를 삭제할까요?`)) return false;
     setTasks((prev) => prev.filter((t) => t._id !== task._id));
     showToast('일정을 삭제했어요.');
     try {
@@ -277,6 +277,12 @@ function ClassMateApp({
       setTasks((prev) => [...prev, task]);
       showToast(errorMessage(e, '삭제에 실패했습니다.'));
     }
+    return true;
+  };
+
+  // 수정 창의 삭제 버튼: 확인 창에서 취소하면 수정 창을 그대로 둔다
+  const handleDeleteFromModal = async () => {
+    if (editTask && (await handleDelete(editTask))) closeModal();
   };
 
   const handleDeleteAll = async () => {
@@ -573,9 +579,9 @@ function ClassMateApp({
 
   // ── Calendar Page ─────────────────────────────────────────────
   const renderCalendar = () => {
-    const selectedTasks = tasks
-      .filter((t) => t.due_date === selectedDate)
-      .sort((a, b) => a.title.localeCompare(b.title));
+    // 일정이 있는 날짜는 첫 일정 수정 창을, 빈 날짜는 그 날짜로 추가 창을 연다
+    const openDay = (iso: string, dayTasks: Task[]) =>
+      dayTasks.length ? openEdit(dayTasks[0]) : openAdd(iso);
 
     const moveMonth = (delta: number) => {
       const d = new Date(calYear, calMonth + delta, 1);
@@ -586,7 +592,6 @@ function ClassMateApp({
       const now = new Date();
       setCalYear(now.getFullYear());
       setCalMonth(now.getMonth());
-      setSelectedDate(todayISO);
     };
 
     return (
@@ -594,77 +599,65 @@ function ClassMateApp({
         <div className="welcome-row">
           <div>
             <h2>한눈에 보는 나의 일정</h2>
-            <p>날짜를 누르면 바로 그 날짜에 일정을 추가할 수 있어요.</p>
+            <p>빈 날짜를 누르면 일정을 추가하고, 일정을 누르면 수정하거나 삭제할 수 있어요.</p>
           </div>
           <div className="date-pill">일정 {tasks.length}개</div>
         </div>
 
-        <div className="calendar-grid-wrapper">
-          <div className="card card-body">
-            <div className="card-header">
-              <div>
-                <h3>월간 달력</h3>
-                <p>색상으로 일정 유형을 구분해요.</p>
-              </div>
-              <div className="calendar-controls">
-                <button className="cal-nav-btn" onClick={() => moveMonth(-1)} aria-label="이전 달"><ChevronLeft size={16} /></button>
-                <h3 style={{ minWidth: 110, textAlign: 'center' }}>{calYear}년 {calMonth + 1}월</h3>
-                <button className="cal-nav-btn" onClick={() => moveMonth(1)} aria-label="다음 달"><ChevronRight size={16} /></button>
-                <button className="text-btn" onClick={goToday}>오늘</button>
-              </div>
+        <div className="card card-body">
+          <div className="card-header">
+            <div>
+              <h3>월간 달력</h3>
+              <p>색상으로 일정 유형을 구분해요.</p>
             </div>
-
-            <div className="cal-grid">
-              {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
-                <div key={w} className="cal-weekday">{w}</div>
-              ))}
-              {calDays.map(({ iso, day, isCurrentMonth, isToday }) => {
-                const dayTasks = tasks.filter((t) => t.due_date === iso);
-                return (
-                  <button
-                    key={iso}
-                    className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''} ${iso === selectedDate ? 'selected' : ''}`}
-                    onClick={() => {
-                      // 날짜를 누르면 선택과 동시에 그 날짜로 일정 추가 창을 연다
-                      setSelectedDate(iso);
-                      openAdd(iso);
-                    }}
-                    aria-label={`${iso}, 일정 ${dayTasks.length}개, 눌러서 일정 추가`}
-                  >
-                    <span className="day-num">{day}</span>
-                    <div className="day-events">
-                      {dayTasks.slice(0, 2).map((t) => (
-                        <div key={t._id} className={`day-event-pill ${KIND_COLOR[t.kind]}`}>{t.title}</div>
-                      ))}
-                      {dayTasks.length > 2 && <div className="day-more">+{dayTasks.length - 2}개 더</div>}
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="calendar-controls">
+              <button className="cal-nav-btn" onClick={() => moveMonth(-1)} aria-label="이전 달"><ChevronLeft size={16} /></button>
+              <h3 style={{ minWidth: 110, textAlign: 'center' }}>{calYear}년 {calMonth + 1}월</h3>
+              <button className="cal-nav-btn" onClick={() => moveMonth(1)} aria-label="다음 달"><ChevronRight size={16} /></button>
+              <button className="text-btn" onClick={goToday}>오늘</button>
             </div>
           </div>
 
-          {/* Selected date */}
-          <div className="card card-body">
-            <div className="card-header">
-              <div>
-                <h3>선택한 날짜</h3>
-                <p>마지막으로 누른 날짜의 일정이에요.</p>
-              </div>
-              <button className="text-btn" onClick={() => openAdd(selectedDate)}>＋ 추가</button>
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16 }}>
-              {fmtDate(selectedDate, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-            </div>
-            <div className="task-list">
-              {selectedTasks.length === 0 ? (
-                <div className="empty-state"><div className="empty-icon">☀️</div>이 날짜에는 등록된 일정이 없어요.</div>
-              ) : (
-                selectedTasks.map((t) => (
-                  <TaskRow key={t._id} task={t} onToggle={handleToggle} onOpen={openEdit} onDelete={handleDelete} showDate={false} />
-                ))
-              )}
-            </div>
+          <div className="cal-grid">
+            {['일', '월', '화', '수', '목', '금', '토'].map((w) => (
+              <div key={w} className="cal-weekday">{w}</div>
+            ))}
+            {calDays.map(({ iso, day, isCurrentMonth, isToday }) => {
+              const dayTasks = tasks.filter((t) => t.due_date === iso);
+              return (
+                // 안에 일정 버튼이 들어가므로 칸 자체는 div로 두고 버튼 역할을 부여한다
+                <div
+                  key={iso}
+                  role="button"
+                  tabIndex={0}
+                  className={`cal-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'is-today' : ''}`}
+                  onClick={() => openDay(iso, dayTasks)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                    e.preventDefault();
+                    openDay(iso, dayTasks);
+                  }}
+                  aria-label={`${iso}, 일정 ${dayTasks.length}개, ${dayTasks.length ? '눌러서 일정 수정' : '눌러서 일정 추가'}`}
+                >
+                  <span className="day-num">{day}</span>
+                  <div className="day-events">
+                    {dayTasks.map((t) => (
+                      <button
+                        key={t._id}
+                        className={`day-event-pill ${KIND_COLOR[t.kind]}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(t);
+                        }}
+                        aria-label={`${t.title} 수정`}
+                      >
+                        {t.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1126,6 +1119,7 @@ function ClassMateApp({
         isOpen={modalOpen}
         onClose={closeModal}
         onSave={handleSaveTask}
+        onDelete={handleDeleteFromModal}
         editTask={editTask}
         defaultDate={defaultDate}
         saving={saving}
@@ -1139,12 +1133,11 @@ function ClassMateApp({
 
 // ─── TaskRow sub-component ────────────────────────────────────
 function TaskRow({
-  task, onToggle, onOpen, onDelete, showDate,
+  task, onToggle, onOpen, showDate,
 }: {
   task: Task;
   onToggle: (t: Task) => void;
   onOpen: (t: Task) => void;
-  onDelete?: (t: Task) => void;
   showDate: boolean;
 }) {
   return (
@@ -1170,11 +1163,6 @@ function TaskRow({
       </button>
       {showDate && (
         <span className={`task-due ${isOverdue(task) ? 'overdue' : ''}`}>{dueText(task)}</span>
-      )}
-      {onDelete && (
-        <button className="table-action danger" onClick={() => onDelete(task)} aria-label={`${task.title} 삭제`}>
-          <Trash2 size={14} />
-        </button>
       )}
     </div>
   );

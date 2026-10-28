@@ -9,6 +9,7 @@ interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: TaskFormData) => void;
+  onDelete?: () => void;
   editTask?: Task | null;
   defaultDate?: string;
   saving?: boolean;
@@ -18,6 +19,7 @@ export default function TaskModal({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   editTask,
   defaultDate,
   saving = false,
@@ -186,8 +188,14 @@ export default function TaskModal({
             <button type="button" className="btn-secondary" onClick={onClose}>
               취소
             </button>
+            {/* 이미 등록된 일정을 수정할 때만 삭제 버튼을 보여준다 */}
+            {editTask && onDelete && (
+              <button type="button" className="btn-secondary danger-btn" onClick={onDelete} disabled={saving}>
+                삭제하기
+              </button>
+            )}
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? '저장 중…' : '저장하기'}
+              {saving ? '저장 중…' : editTask ? '편집 내용 저장하기' : '저장하기'}
             </button>
           </div>
         </form>
