@@ -661,7 +661,7 @@ function ClassMateApp({
                 <div className="empty-state"><div className="empty-icon">☀️</div>이 날짜에는 등록된 일정이 없어요.</div>
               ) : (
                 selectedTasks.map((t) => (
-                  <TaskRow key={t._id} task={t} onToggle={handleToggle} onOpen={openEdit} showDate={false} />
+                  <TaskRow key={t._id} task={t} onToggle={handleToggle} onOpen={openEdit} onDelete={handleDelete} showDate={false} />
                 ))
               )}
             </div>
@@ -1139,11 +1139,12 @@ function ClassMateApp({
 
 // ─── TaskRow sub-component ────────────────────────────────────
 function TaskRow({
-  task, onToggle, onOpen, showDate,
+  task, onToggle, onOpen, onDelete, showDate,
 }: {
   task: Task;
   onToggle: (t: Task) => void;
   onOpen: (t: Task) => void;
+  onDelete?: (t: Task) => void;
   showDate: boolean;
 }) {
   return (
@@ -1169,6 +1170,11 @@ function TaskRow({
       </button>
       {showDate && (
         <span className={`task-due ${isOverdue(task) ? 'overdue' : ''}`}>{dueText(task)}</span>
+      )}
+      {onDelete && (
+        <button className="table-action danger" onClick={() => onDelete(task)} aria-label={`${task.title} 삭제`}>
+          <Trash2 size={14} />
+        </button>
       )}
     </div>
   );
