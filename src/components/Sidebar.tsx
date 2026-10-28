@@ -1,9 +1,9 @@
 'use client';
 
-import { LayoutDashboard, CalendarDays, ListTodo, BarChart2, Settings, BookOpen, LogOut } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ListChecks, ListTodo, BarChart2, Settings, BookOpen, LogOut } from 'lucide-react';
 import type { User } from '@/lib/client';
 
-type Page = 'dashboard' | 'calendar' | 'tasks' | 'stats' | 'settings';
+type Page = 'dashboard' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 interface SidebarProps {
   activePage: Page;
@@ -14,6 +14,7 @@ interface SidebarProps {
 
 const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'dashboard', label: '대시보드', icon: <LayoutDashboard size={18} /> },
+  { page: 'checklist', label: '체크판', icon: <ListChecks size={18} /> },
   { page: 'calendar', label: '일정 달력', icon: <CalendarDays size={18} /> },
   { page: 'tasks', label: '과제 관리', icon: <ListTodo size={18} /> },
   { page: 'stats', label: '학습 통계', icon: <BarChart2 size={18} /> },
@@ -67,7 +68,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
           <div className="spark">✦</div>
           <strong>조금씩, 꾸준하게</strong>
           <p>오늘 할 일을 하나씩 끝내면<br />목표에 한 걸음 더 가까워져요.</p>
-          <button className="focus-card-btn" onClick={() => onNavigate('tasks')}>
+          <button className="focus-card-btn" onClick={() => onNavigate('checklist')}>
             오늘 할 일 보기 →
           </button>
         </div>

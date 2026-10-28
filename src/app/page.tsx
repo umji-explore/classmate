@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  LayoutDashboard, CalendarDays, ListTodo, BarChart2, Settings,
+  LayoutDashboard, CalendarDays, ListChecks, ListTodo, BarChart2, Settings,
   Search, Bell, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, CheckCheck,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -18,7 +18,7 @@ import AppearanceSettings from '@/components/AppearanceSettings';
 import { applyAppearance, calendarBackgroundCss, Preferences } from '@/lib/appearance';
 
 // ─── Helpers ──────────────────────────────────────────────────
-type Page = 'dashboard' | 'calendar' | 'tasks' | 'stats' | 'settings';
+type Page = 'dashboard' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 const dueText = (t: Task): string => {
   const d = dayDiff(t.due_date);
@@ -124,6 +124,7 @@ function ClassMateApp({
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+  const [hideDone, setHideDone] = useState(false);
 
   // ── Toast helper ──────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
@@ -398,6 +399,7 @@ function ClassMateApp({
   // ── Pages ─────────────────────────────────────────────────────
   const PAGE_TITLES: Record<Page, [string, string]> = {
     dashboard: ['대시보드', 'WORKSPACE / OVERVIEW'],
+    checklist: ['체크판', 'WORKSPACE / CHECKLIST'],
     calendar: ['일정 달력', 'WORKSPACE / CALENDAR'],
     tasks: ['과제 관리', 'WORKSPACE / TASKS'],
     stats: ['학습 통계', 'WORKSPACE / ANALYTICS'],
@@ -577,6 +579,9 @@ function ClassMateApp({
               <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => openAdd()}>
                 ＋ 새 과제 등록
               </button>
+              <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => navigate('checklist')}>
+                ☑ 오늘 할 일 체크하기
+              </button>
               <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => navigate('calendar')}>
                 ▦ 이번 달 일정 확인
               </button>
@@ -589,6 +594,89 @@ function ClassMateApp({
               <p>{TIPS[tipIndex]}</p>
             </div>
           </div>
+        </div>
+      </section>
+    );
+  };
+
+  // ── Checklist Page ────────────────────────────────────────────
+  const renderChecklist = () => {
+    const tomorrowISO = offsetDate(1);
+    const weekday = (new Date().getDay() + 6) % 7;
+    const weekEndISO = offsetDate(6 - weekday); // 이번 주 일요일
+    const byDue = (a: Task, b: Task) => a.due_date.localeCompare(b.due_date) || a.title.localeCompare(b.title);
+    const visible = (t: Task) => !hideDone || t.status !== 'done';
+
+    const todayTasks = tasks.filter((t) => t.due_date === todayISO).sort(byDue);
+    const todayDone = todayTasks.filter((t) => t.status === 'done').length;
+    const todayPct = todayTasks.length ? Math.round((todayDone / todayTasks.length) * 100) : 0;
+    const weekTasks = tasks.filter((t) => t.due_date >= todayISO && t.due_date <= weekEndISO);
+    const weekDone = weekTasks.filter((t) => t.status === 'done').length;
+    const dayLabel = (iso: string) => fmtDate(iso, { month: 'long', day: 'numeric', weekday: 'short' });
+
+    // empty가 빈 문자열인 칸은 일정이 없으면 아예 숨긴다
+    const sections: { key: string; title: string; hint: string; items: Task[]; empty: string; addDate?: string }[] = [
+      { key: 'overdue', title: '⚠️ 기한 지남', hint: '마감일이 지났지만 아직 끝내지 못한 일', items: tasks.filter(isOverdue).sort(byDue), empty: '' },
+      { key: 'today', title: '오늘', hint: dayLabel(todayISO), items: todayTasks.filter(visible), empty: '오늘 마감인 일정이 없어요.', addDate: todayISO },
+      { key: 'tomorrow', title: '내일', hint: dayLabel(tomorrowISO), items: tasks.filter((t) => t.due_date === tomorrowISO && visible(t)).sort(byDue), empty: '내일 마감인 일정이 없어요.', addDate: tomorrowISO },
+      { key: 'week', title: '이번 주 남은 날', hint: '모레부터 이번 주 일요일까지', items: tasks.filter((t) => t.due_date > tomorrowISO && t.due_date <= weekEndISO && visible(t)).sort(byDue), empty: '' },
+    ];
+
+    return (
+      <section className="page-section">
+        <div className="welcome-row">
+          <div>
+            <h2>오늘 할 일을 하나씩 체크해요 ✔</h2>
+            <p>네모를 누르면 바로 완료 처리되고, 이름을 누르면 수정할 수 있어요.</p>
+          </div>
+          <button className={`filter-btn ${hideDone ? 'active' : ''}`} aria-pressed={hideDone} onClick={() => setHideDone((v) => !v)}>
+            {hideDone ? '완료한 일정 보이기' : '완료한 일정 숨기기'}
+          </button>
+        </div>
+
+        <div className="card card-body checklist-summary">
+          <div className="progress-top">
+            <span style={{ color: 'var(--muted)' }}>오늘 {todayDone}/{todayTasks.length} 완료</span>
+            <strong>{todayPct}%</strong>
+          </div>
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${todayPct}%` }} />
+          </div>
+          <p className="checklist-foot">
+            {todayTasks.length === 0
+              ? '오늘 마감인 일정이 없어요. 내일 일정을 미리 챙겨 볼까요?'
+              : todayDone === todayTasks.length
+                ? '오늘 할 일을 모두 끝냈어요! 🎉'
+                : `오늘 ${todayTasks.length - todayDone}개 남았어요. 조금만 더 힘내요!`}
+            {` · 이번 주 ${weekDone}/${weekTasks.length} 완료`}
+          </p>
+        </div>
+
+        <div className="checklist-grid">
+          {sections
+            .filter((sec) => sec.items.length > 0 || sec.empty)
+            .map((sec) => (
+              <div key={sec.key} className={`card card-body ${sec.key === 'overdue' ? 'checklist-overdue' : ''}`}>
+                <div className="card-header">
+                  <div>
+                    <h3>{sec.title} <span className="checklist-count">{sec.items.length}</span></h3>
+                    <p>{sec.hint}</p>
+                  </div>
+                  {sec.addDate && (
+                    <button className="text-btn" onClick={() => openAdd(sec.addDate)}>＋ 추가</button>
+                  )}
+                </div>
+                <div className="task-list">
+                  {sec.items.length === 0 ? (
+                    <div className="empty-state" style={{ padding: '20px 12px' }}>{sec.empty}</div>
+                  ) : (
+                    sec.items.map((t) => (
+                      <TaskRow key={t._id} task={t} onToggle={handleToggle} onOpen={openEdit} showDate={sec.key !== 'today'} />
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
         </div>
       </section>
     );
@@ -1026,6 +1114,7 @@ function ClassMateApp({
   // ── Mobile nav icons ──────────────────────────────────────────
   const mobileNavItems: { page: Page; label: string; icon: React.ReactNode }[] = [
     { page: 'dashboard', label: '홈', icon: <LayoutDashboard size={20} /> },
+    { page: 'checklist', label: '체크', icon: <ListChecks size={20} /> },
     { page: 'calendar', label: '달력', icon: <CalendarDays size={20} /> },
     { page: 'tasks', label: '과제', icon: <ListTodo size={20} /> },
     { page: 'stats', label: '통계', icon: <BarChart2 size={20} /> },
@@ -1115,6 +1204,7 @@ function ClassMateApp({
           ) : (
             <>
               {activePage === 'dashboard' && renderDashboard()}
+              {activePage === 'checklist' && renderChecklist()}
               {activePage === 'calendar' && renderCalendar()}
               {activePage === 'tasks' && renderTasks()}
               {activePage === 'stats' && renderStats()}
