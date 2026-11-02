@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { BookOpen, CalendarDays, BarChart2, Bell, ArrowLeft } from 'lucide-react';
 import { api, ApiError, User } from '@/lib/client';
+import type { AccountType } from '@/lib/school';
+import SchoolPicker, { draftFromSchool, draftToPayload, SchoolDraft } from '@/components/SchoolPicker';
 
 // welcome: 첫 화면, reset: 비밀번호 찾기, resetSent: 임시 비밀번호 메일 발송 안내
 type Mode = 'welcome' | 'login' | 'signup' | 'reset' | 'resetSent';
@@ -33,6 +35,8 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
   const [submitting, setSubmitting] = useState(false);
   const [sentTo, setSentTo] = useState(''); // 임시 비밀번호를 보낸 이메일 (일부 가림)
   const [lastUsername, setLastUsername] = useState(''); // 비밀번호 찾기 후 로그인 폼에 미리 채움
+  const [accountType, setAccountType] = useState<AccountType>('personal');
+  const [schoolDraft, setSchoolDraft] = useState<SchoolDraft>(() => draftFromSchool(null));
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -51,6 +55,11 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
       setError('비밀번호 확인이 일치하지 않습니다.');
       return;
     }
+    const school = draftToPayload(schoolDraft);
+    if (mode === 'signup' && accountType === 'student' && (!school || !school.class_nm)) {
+      setError('학생용 계정은 학교를 검색해서 고르고 반을 입력해 주세요.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -58,7 +67,14 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
       if (mode === 'signup') {
         const { user } = await api<{ user: User }>('/api/auth/signup', {
           method: 'POST',
-          body: { username, password, nickname: get('nickname').trim(), email: get('email').trim() },
+          body: {
+            username,
+            password,
+            nickname: get('nickname').trim(),
+            email: get('email').trim(),
+            account_type: accountType,
+            school: accountType === 'student' ? school : null,
+          },
         });
         onAuthed(user);
       } else if (mode === 'login') {
@@ -145,6 +161,35 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
 
         {/* key로 모드가 바뀔 때 입력값 초기화 */}
         <form key={mode} className="auth-form" onSubmit={handleSubmit}>
+          {isSignup && (
+            <div className="field">
+              <label>계정 유형</label>
+              <div className="account-type" role="radiogroup" aria-label="계정 유형">
+                {([
+                  ['personal', '개인용', '과제·일정을 직접 관리해요'],
+                  ['student', '학생용', '학교 시간표·학사일정·준비물을 알려줘요'],
+                ] as const).map(([type, label, desc]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    role="radio"
+                    aria-checked={accountType === type}
+                    className="account-type-btn"
+                    onClick={() => setAccountType(type)}
+                  >
+                    <strong>{label}</strong>
+                    <span>{desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {isSignup && accountType === 'student' && (
+            <div className="field">
+              <label>학교·학년·반</label>
+              <SchoolPicker value={schoolDraft} onChange={setSchoolDraft} />
+            </div>
+          )}
           {isSignup && (
             <div className="field">
               <label htmlFor="auth-nickname">이름 (화면에 표시)</label>

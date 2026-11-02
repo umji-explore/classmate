@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  LayoutDashboard, CalendarDays, ListChecks, ListTodo, BarChart2, Settings,
+  LayoutDashboard, CalendarDays, ListChecks, ListTodo, School, BarChart2, Settings,
   Search, Bell, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, CheckCheck,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -16,10 +16,13 @@ import { dayDiff, fmtDate, getTodayISO, offsetDate, toLocalISO } from '@/lib/dat
 import { api, ApiError, UNAUTHORIZED_EVENT, User } from '@/lib/client';
 import AuthScreen from '@/components/AuthScreen';
 import AppearanceSettings from '@/components/AppearanceSettings';
+import SchoolSettings from '@/components/SchoolSettings';
+import SchoolPage from '@/components/SchoolPage';
+import { disablePush } from '@/lib/push-client';
 import { applyAppearance, calendarBackgroundCss, Preferences } from '@/lib/appearance';
 
 // ─── Helpers ──────────────────────────────────────────────────
-type Page = 'dashboard' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
+type Page = 'dashboard' | 'school' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 const dueText = (t: Task): string => {
   const d = dayDiff(t.due_date);
@@ -105,7 +108,13 @@ function ClassMateApp({
   onUserChange: (user: User) => void;
   onSignedOut: () => void;
 }) {
-  const [activePage, setActivePage] = useState<Page>('dashboard');
+  // 학교 알림을 누르면 /?page=school 로 열린다
+  const [activePage, setActivePage] = useState<Page>(() =>
+    new URLSearchParams(window.location.search).get('page') === 'school' && user.school ? 'school' : 'dashboard'
+  );
+  useEffect(() => {
+    if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
+  }, []);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -181,6 +190,8 @@ function ClassMateApp({
 
   // ── Account ───────────────────────────────────────────────────
   const handleLogout = async () => {
+    // 이 기기에서 받던 알림도 끈다 (공용 기기에서 다른 사람이 알림을 받지 않도록)
+    await disablePush().catch(() => {});
     try {
       await api('/api/auth/logout', { method: 'POST' });
     } catch {
@@ -421,6 +432,7 @@ function ClassMateApp({
   // ── Pages ─────────────────────────────────────────────────────
   const PAGE_TITLES: Record<Page, [string, string]> = {
     dashboard: ['대시보드', 'WORKSPACE / OVERVIEW'],
+    school: ['학교생활', 'WORKSPACE / SCHOOL'],
     checklist: ['체크판', 'WORKSPACE / CHECKLIST'],
     calendar: ['일정 달력', 'WORKSPACE / CALENDAR'],
     tasks: ['과제 관리', 'WORKSPACE / TASKS'],
@@ -601,6 +613,11 @@ function ClassMateApp({
               <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => openAdd()}>
                 ＋ 새 과제 등록
               </button>
+              {user.school && (
+                <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => navigate('school')}>
+                  🏫 오늘 시간표·준비물 보기
+                </button>
+              )}
               <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={() => navigate('checklist')}>
                 ☑ 오늘 할 일 체크하기
               </button>
@@ -1025,6 +1042,7 @@ function ClassMateApp({
         </div>
       </div>
       <div className="settings-grid">
+        <SchoolSettings user={user} onUserChange={onUserChange} showToast={showToast} />
         <AppearanceSettings
           preferences={preferences}
           onChange={setPreferences}
@@ -1136,10 +1154,14 @@ function ClassMateApp({
   // ── Mobile nav icons ──────────────────────────────────────────
   const mobileNavItems: { page: Page; label: string; icon: React.ReactNode }[] = [
     { page: 'dashboard', label: '홈', icon: <LayoutDashboard size={20} /> },
+    // 학생용은 좁은 화면에 다 들어가도록 '통계' 대신 '학교'를 보여준다
+    ...(user.school
+      ? [{ page: 'school' as const, label: '학교', icon: <School size={20} /> }]
+      : []),
     { page: 'checklist', label: '체크', icon: <ListChecks size={20} /> },
     { page: 'calendar', label: '달력', icon: <CalendarDays size={20} /> },
     { page: 'tasks', label: '과제', icon: <ListTodo size={20} /> },
-    { page: 'stats', label: '통계', icon: <BarChart2 size={20} /> },
+    ...(user.school ? [] : [{ page: 'stats' as const, label: '통계', icon: <BarChart2 size={20} /> }]),
     { page: 'settings', label: '설정', icon: <Settings size={20} /> },
   ];
 
@@ -1147,7 +1169,7 @@ function ClassMateApp({
   return (
     <>
       <div className="app-layout">
-        <Sidebar activePage={activePage} onNavigate={navigate} user={user} onLogout={handleLogout} />
+        <Sidebar activePage={activePage} onNavigate={navigate} user={user} onLogout={handleLogout} showSchool={!!user.school} />
 
         <main className="main-content">
           {/* Topbar */}
@@ -1226,6 +1248,7 @@ function ClassMateApp({
           ) : (
             <>
               {activePage === 'dashboard' && renderDashboard()}
+              {activePage === 'school' && (user.school ? <SchoolPage key={JSON.stringify(user.school)} school={user.school} /> : renderDashboard())}
               {activePage === 'checklist' && renderChecklist()}
               {activePage === 'calendar' && renderCalendar()}
               {activePage === 'tasks' && renderTasks()}

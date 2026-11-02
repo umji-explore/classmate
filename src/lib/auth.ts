@@ -5,6 +5,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import Session from '@/models/Session';
 import User, { IUser, IUserDocument } from '@/models/User';
 import { normalizePreferences, Preferences } from '@/lib/appearance';
+import type { AccountType, SchoolInfo } from '@/lib/school';
 
 const scryptAsync = promisify(scrypt) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
@@ -107,6 +108,8 @@ export interface SessionUser {
   nickname: string;
   email: string | null; // 이메일 기능 전에 가입한 계정은 null
   preferences: Preferences; // 꾸미기 설정
+  account_type: AccountType;
+  school: SchoolInfo | null; // 학생용 계정만
 }
 
 export const toSessionUser = (user: {
@@ -115,12 +118,25 @@ export const toSessionUser = (user: {
   nickname: string;
   email?: string | null;
   preferences?: IUser['preferences'];
+  account_type?: IUser['account_type'];
+  school?: IUser['school'];
 }): SessionUser => ({
   id: String(user._id),
   username: user.username,
   nickname: user.nickname,
   email: user.email ?? null,
   preferences: normalizePreferences(user.preferences),
+  account_type: user.account_type === 'student' && user.school ? 'student' : 'personal',
+  school: user.account_type === 'student' && user.school
+    ? {
+        office_code: user.school.office_code,
+        school_code: user.school.school_code,
+        school_name: user.school.school_name,
+        school_kind: user.school.school_kind,
+        grade: user.school.grade,
+        class_nm: user.school.class_nm,
+      }
+    : null,
 });
 
 // 현재 요청의 로그인 사용자 (없으면 null)
@@ -132,6 +148,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await Session.findOne({ token_hash: hashToken(token), expires_at: { $gt: new Date() } }).lean();
   if (!session) return null;
 
-  const user = await User.findById(session.user).select('username nickname email preferences').lean();
+  const user = await User.findById(session.user).select('username nickname email preferences account_type school').lean();
   return user ? toSessionUser(user) : null;
 }

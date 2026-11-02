@@ -2171,3 +2171,319 @@ a {
     grid-column: 1 / -1;
   }
 }
+
+/* ─── 계정 유형 · 학교 선택 ─────────────────────────────────────── */
+.account-type {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.account-type-btn {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: left;
+  color: var(--ink);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.account-type-btn strong {
+  font-size: 13px;
+}
+
+.account-type-btn span {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.account-type-btn[aria-checked='true'] {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.account-type-btn[aria-checked='true'] strong {
+  color: var(--blue);
+}
+
+.school-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.school-search {
+  display: flex;
+  gap: 6px;
+}
+
+.school-search input,
+.school-class input,
+.school-class select {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.school-search .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.school-results {
+  display: grid;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.school-result {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--ink);
+  border-top: 1px solid var(--line-soft);
+}
+
+.school-result:first-child {
+  border-top: 0;
+}
+
+.school-result:hover {
+  background: var(--blue-soft);
+}
+
+.school-result strong,
+.school-selected strong {
+  font-size: 13px;
+}
+
+.school-result span,
+.school-selected span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.school-selected {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--blue-line);
+  border-radius: 10px;
+  background: var(--blue-tint);
+}
+
+.school-selected > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.school-error {
+  font-size: 12px;
+  color: var(--red-ink);
+}
+
+.school-class {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.school-class label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.push-hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  background: var(--amber-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* ─── 학교생활 페이지 ──────────────────────────────────────────── */
+.school-loading {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.school-loading .spinner {
+  padding: 16px;
+}
+
+.school-loading p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.school-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.school-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.period-list {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.period-list li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--surface-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.period-list li.is-pe {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+
+.period-no {
+  min-width: 42px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.prep-box {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--blue-line);
+  border-radius: 12px;
+  background: var(--blue-tint);
+}
+
+.prep-box strong {
+  font-size: 12px;
+}
+
+.prep-box ul {
+  margin: 6px 0 0 18px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--ink-2);
+}
+
+.upcoming-list {
+  display: grid;
+}
+
+.upcoming-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+
+.upcoming-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.upcoming-item strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upcoming-date {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.upcoming-d {
+  min-width: 52px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+.school-cal-day:disabled {
+  cursor: default;
+}
+
+.school-cal-day.day-off .day-num {
+  color: var(--red);
+}
+
+.school-cal-day.is-today.day-off .day-num {
+  color: #fff;
+}
+
+.pe-mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 12px;
+}
+
+.school-pill.red { background: var(--red-soft); color: var(--red-ink); }
+.school-pill.purple { background: var(--purple-soft); color: var(--purple-ink); }
+
+.day-periods {
+  font-size: 9px;
+  color: var(--faint);
+}
+
+.cal-grid.is-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.school-note {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@media (max-width: 768px) {
+  .upcoming-item {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .upcoming-date {
+    display: none;
+  }
+  .account-type {
+    grid-template-columns: 1fr;
+  }
+}

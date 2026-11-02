@@ -1,5 +1,6 @@
 // 브라우저 전용 API 호출 헬퍼 (로그인 상태는 httpOnly 쿠키로 자동 전송됨)
 import type { Preferences } from '@/lib/appearance';
+import type { AccountType, SchoolInfo } from '@/lib/school';
 
 export interface User {
   id: string;
@@ -7,6 +8,8 @@ export interface User {
   nickname: string;
   email: string | null; // 비밀번호 찾기 메일 주소 (예전 계정은 null)
   preferences: Preferences; // 꾸미기 설정
+  account_type: AccountType;
+  school: SchoolInfo | null; // 학생용 계정만
 }
 
 export class ApiError extends Error {

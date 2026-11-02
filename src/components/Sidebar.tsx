@@ -1,14 +1,15 @@
 'use client';
 
-import { LayoutDashboard, CalendarDays, ListChecks, ListTodo, BarChart2, Settings, BookOpen, LogOut } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ListChecks, ListTodo, School, BarChart2, Settings, BookOpen, LogOut } from 'lucide-react';
 import type { User } from '@/lib/client';
 
-type Page = 'dashboard' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
+type Page = 'dashboard' | 'school' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 interface SidebarProps {
   activePage: Page;
   onNavigate: (page: Page) => void;
   user?: User;
+  showSchool?: boolean; // 학생용 계정이면 '학교생활' 메뉴 표시
   onLogout?: () => void;
 }
 
@@ -20,7 +21,7 @@ const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'stats', label: '학습 통계', icon: <BarChart2 size={18} /> },
 ];
 
-export default function Sidebar({ activePage, onNavigate, user, onLogout }: SidebarProps) {
+export default function Sidebar({ activePage, onNavigate, user, onLogout, showSchool }: SidebarProps) {
   return (
     <aside className="sidebar">
       {/* Brand */}
@@ -38,7 +39,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout }: Side
       <div className="sidebar-section">
         <div className="sidebar-label">WORKSPACE</div>
         <nav aria-label="주 메뉴" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {navItems.map(({ page, label, icon }) => (
+          {(showSchool ? [{ page: 'school' as const, label: '학교생활', icon: <School size={18} /> }, ...navItems] : navItems).map(({ page, label, icon }) => (
             <button
               key={page}
               className={`nav-btn ${activePage === page ? 'active' : ''}`}

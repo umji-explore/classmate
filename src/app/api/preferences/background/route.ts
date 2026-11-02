@@ -11,9 +11,9 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 // GET /api/preferences/background - 내 달력 배경 사진
 export async function GET() {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return unauthorized();
   try {
-    const sessionUser = await getSessionUser();
-    if (!sessionUser) return unauthorized();
     await connectToDatabase();
     // lean()을 쓰면 data가 Buffer가 아닌 BSON Binary로 오므로 일반 문서로 읽는다
     const image = await CalendarImage.findOne({ user: sessionUser.id });
