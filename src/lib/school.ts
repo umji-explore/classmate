@@ -57,16 +57,43 @@ export const maxGrade = (kind: string) => (kind.includes('초등') ? 6 : 3);
 
 // ── 학사일정 분류 ───────────────────────────────────────────────
 const VACATION = /방학(?!식)/;
-const EXAM = /고사|시험|지필|평가(?!회)|모의고사|학력평가|수능/;
+// '봉사활동평가', '동아리활동(평가)' 같은 활동 평가는 시험이 아니므로 '평가'만으로는 시험으로 보지 않는다
+const EXAM = /고사|시험|지필|학력평가|모의평가|수능/;
 const TRIP = /체험\s*학습|현장\s*체험|수학\s*여행|수련\s*활동|수련회|소풍|견학|야영/;
+const TRIP_PREP = /사전|사후|교육|설명회/; // '체험학습 사전교육'은 행사
 
 export function classifyEvent(name: string, dayOffType: string): { category: EventCategory; day_off: boolean } {
-  const holidayType = dayOffType === '공휴일' || dayOffType === '휴업일';
   if (VACATION.test(name)) return { category: 'vacation', day_off: true };
-  if (TRIP.test(name)) return { category: 'trip', day_off: false };
+  // 휴업일·공휴일은 이름에 '시험'이 있어도 쉬는 날 (예: 대학수학능력시험(1,2휴업))
+  if (dayOffType === '공휴일' || dayOffType === '휴업일') return { category: 'holiday', day_off: true };
+  if (TRIP.test(name) && !TRIP_PREP.test(name)) return { category: 'trip', day_off: false };
   if (EXAM.test(name)) return { category: 'exam', day_off: false };
-  if (holidayType) return { category: 'holiday', day_off: true };
   return { category: 'event', day_off: false };
+}
+
+// 날짜 계산 (YYYY-MM-DD, 시간대와 무관하게)
+export function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// 방학 날짜를 매일 적지 않고 '방학식'과 '개학'만 적는 학교가 있어, 그 사이를 방학으로 채운다
+export function inferVacationDays(events: SchoolEvent[]): SchoolEvent[] {
+  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
+  const explicit = new Set(sorted.filter((e) => e.category === 'vacation').map((e) => e.date));
+  const inferred: SchoolEvent[] = [];
+  for (const start of sorted.filter((e) => /방학식|종업식/.test(e.name))) {
+    const end = sorted.find((e) => e.date > start.date && /개학|입학식/.test(e.name));
+    if (!end || dayGap(start.date, end.date) > 120) continue;
+    const month = Number(start.date.slice(5, 7));
+    const name = /여름/.test(start.name) || (month >= 6 && month <= 8) ? '여름방학'
+      : /종업/.test(start.name) ? '봄방학' : '겨울방학';
+    for (let d = addDays(start.date, 1); d < end.date; d = addDays(d, 1)) {
+      if (!explicit.has(d)) inferred.push({ date: d, name, detail: '', category: 'vacation', day_off: true });
+    }
+  }
+  return inferred;
 }
 
 // 중요 일정(미리 알림 대상): 시험, 체험학습, 방학 시작
@@ -111,7 +138,9 @@ const EVENT_ITEMS: { category: EventCategory; items: string[] }[] = [
 export function buildSchoolDay(date: string, events: SchoolEvent[], periods: Period[]): SchoolDay {
   const sorted = [...periods].sort((a, b) => a.period - b.period);
   const weekend = [0, 6].includes(new Date(`${date}T00:00:00`).getDay());
-  const day_off = events.some((e) => e.day_off) || (weekend && sorted.length === 0);
+  // 방학 중이라도 체험학습·시험이 있는 날은 등교(참석)하는 날로 본다
+  const attending = events.some((e) => e.category === 'trip' || e.category === 'exam');
+  const day_off = (events.some((e) => e.day_off) && !attending) || (weekend && sorted.length === 0);
   const pe = !day_off && sorted.some((p) => PE.test(p.subject));
 
   const items = new Set<string>();

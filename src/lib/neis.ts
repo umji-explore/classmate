@@ -2,7 +2,7 @@
 // NEIS_API_KEY가 없으면 어떤 페이지를 요청해도 첫 5건만 오기 때문에 학교 검색에만 쓸 수 있다
 import { connectToDatabase } from '@/lib/mongodb';
 import SchoolCache from '@/models/SchoolCache';
-import { classifyEvent, Period, SchoolEvent, SchoolInfo, SchoolSearchResult } from '@/lib/school';
+import { addDays, classifyEvent, inferVacationDays, Period, SchoolEvent, SchoolInfo, SchoolSearchResult } from '@/lib/school';
 
 const BASE = 'https://open.neis.go.kr/hub';
 const TIMEOUT_MS = 10000;
@@ -129,12 +129,17 @@ async function scheduleMonth(school: SchoolInfo, month: string) {
   );
 }
 
+// 방학식이 범위보다 몇 달 앞에 있을 수 있어 앞뒤로 넉넉히 받아 방학을 계산한다
+const VACATION_PAD_DAYS = 100;
+
 export async function getEvents(school: SchoolInfo, from: string, to: string): Promise<SchoolEvent[]> {
-  const months = await Promise.all(monthsBetween(from, to).map((m) => scheduleMonth(school, m)));
+  const padFrom = addDays(from, -VACATION_PAD_DAYS);
+  const padTo = addDays(to, VACATION_PAD_DAYS);
+  const months = await Promise.all(monthsBetween(padFrom, padTo).map((m) => scheduleMonth(school, m)));
   const events: SchoolEvent[] = [];
   const seen = new Set<string>();
   for (const r of months.flat()) {
-    if (r.date < from || r.date > to || !r.name || r.name === '토요휴업일') continue;
+    if (!r.name || r.name === '토요휴업일') continue;
     // 내 학년이 'N'으로 표시된 행사는 제외 (전 학년 공통·공휴일은 '*' 또는 'Y')
     if (r.grades[school.grade - 1] === 'N') continue;
     const dedupe = `${r.date}|${r.name}`;
@@ -142,7 +147,9 @@ export async function getEvents(school: SchoolInfo, from: string, to: string): P
     seen.add(dedupe);
     events.push({ date: r.date, name: r.name, detail: r.detail, ...classifyEvent(r.name, r.type) });
   }
-  return events.sort((a, b) => a.date.localeCompare(b.date));
+  return [...events, ...inferVacationDays(events)]
+    .filter((e) => e.date >= from && e.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ── 반별 시간표 ─────────────────────────────────────────────────

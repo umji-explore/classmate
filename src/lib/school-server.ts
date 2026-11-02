@@ -1,6 +1,8 @@
 // 학사일정 + 시간표를 날짜별로 묶어 화면·알림에 쓰는 형태로 만든다 (서버 전용)
 import { findSchool, getEvents, getTimetable } from '@/lib/neis';
-import { buildSchoolDay, isImportant, maxGrade, SchoolDay, SchoolEvent, SchoolInfo, vacationRanges } from '@/lib/school';
+import { addDays, buildSchoolDay, isImportant, maxGrade, SchoolDay, SchoolEvent, SchoolInfo, vacationRanges } from '@/lib/school';
+
+export { addDays };
 
 // 회원가입·설정에서 받은 학교 정보를 검사하고, 학교 이름·종류는 나이스에서 다시 확인한 값으로 저장한다
 export async function verifySchoolInput(raw: unknown): Promise<SchoolInfo | string> {
@@ -30,12 +32,6 @@ export async function verifySchoolInput(raw: unknown): Promise<SchoolInfo | stri
 export function kstDate(offsetDays = 0): string {
   const now = new Date(Date.now() + 9 * 3600000 + offsetDays * 86400000);
   return now.toISOString().slice(0, 10);
-}
-
-export function addDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
 }
 
 export async function getSchoolDays(school: SchoolInfo, from: string, to: string): Promise<SchoolDay[]> {

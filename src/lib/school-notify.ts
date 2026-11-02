@@ -49,7 +49,10 @@ export async function eveningMessages(school: SchoolInfo, today = kstDate()): Pr
     if (events.some((p) => p.date < target && p.name === e.name)) continue;
     messages.push({
       title: `D-3 ${CATEGORY_LABEL[e.category]}: ${e.name}`,
-      body: `${dayLabel(e.date)}에 ${e.name}${e.category === 'vacation' ? '이 시작돼요. 🎉' : '이 있어요. 미리 준비해요!'}`,
+      // 이름 끝이 '(1,2)'처럼 끝나도 어색하지 않게 '일정'을 붙인다
+      body: e.category === 'vacation'
+        ? `${dayLabel(e.date)}부터 ${e.name}이에요. 🎉`
+        : `${dayLabel(e.date)}에 '${e.name}' 일정이 있어요. 미리 준비해요!`,
       url: '/?page=school',
       tag: `important-${e.date}-${e.name}`,
     });
