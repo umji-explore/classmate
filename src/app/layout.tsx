@@ -13,6 +13,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#f4f6fb',
+  // 아이폰 홈 바·노치 영역까지 화면을 채우고, 그 부분은 CSS의 safe-area 여백으로 비워 둔다
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
