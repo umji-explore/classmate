@@ -5,6 +5,7 @@
 - **기술 스택**: Next.js 16 (App Router) · TypeScript · MongoDB Atlas (Mongoose)
 - **회원 기능**: 아이디/비밀번호로 회원가입·로그인합니다. 비밀번호는 되돌릴 수 없는 scrypt 해시로만 저장하고, 로그인 상태는 httpOnly 쿠키 세션(30일)으로 유지합니다.
 - **이메일 / 비밀번호 찾기**: 가입할 때 이메일을 함께 입력합니다. 아이디와 이메일이 맞으면 임시 비밀번호(30분 유효)를 Gmail로 보내 줍니다. 원래 비밀번호도 계속 쓸 수 있고, 임시 비밀번호로 로그인하면 그것이 새 비밀번호가 됩니다. 5번 틀리면 15분 잠금, 메일은 1분에 한 번만 보냅니다.
+- **클래스 (공동체용 공지방)**: 선생님(클래스장)이 클래스를 만들면 영문+숫자 6자리 참여 코드가 자동으로 만들어집니다(클래스마다 하나, 절대 겹치지 않음). 학생들은 코드로 들어와 클래스장이 올린 공지를 한 번에 받고, 알림을 켠 기기에는 푸시 알림이 갑니다. 클래스장은 공지 수정·고정·삭제, 참여자 내보내기, 코드 새로 만들기, 클래스 삭제를 할 수 있습니다. 틀린 코드를 10번 넣으면 15분 동안 참여가 막힙니다.
 - **데이터 저장**: 모든 일정은 로그인한 사용자별로 MongoDB Atlas에 저장되어 어느 기기에서든 같은 일정을 볼 수 있습니다.
 
 ## 로컬에서 실행하기
@@ -49,6 +50,15 @@ npm run dev
 | PUT | `/api/auth/password` | 비밀번호 변경 `{ current_password, new_password }` |
 | GET | `/api/auth/me` | 현재 로그인한 사용자 |
 | DELETE | `/api/auth/me` | 회원 탈퇴 `{ password }` (계정·일정 모두 삭제) |
+| GET | `/api/classes` | 내가 만든·참여한 클래스 목록 (새 공지 수 포함) |
+| POST | `/api/classes` | 클래스 만들기 `{ name, description }` → 참여 코드 자동 발급 |
+| POST | `/api/classes/join` | 코드로 참여 `{ code }` |
+| GET | `/api/classes/:id` | 클래스 정보·공지 목록 (클래스장은 참여자 목록·코드도) |
+| PATCH | `/api/classes/:id` | (클래스장) 이름·소개 수정, `{ regenerate_code: true }` 코드 새로 만들기 |
+| DELETE | `/api/classes/:id` | (클래스장) 클래스 삭제 |
+| DELETE | `/api/classes/:id/members/:userId` | 나가기(`me`) 또는 (클래스장) 참여자 내보내기 |
+| POST | `/api/classes/:id/announcements` | (클래스장) 공지 올리기 `{ title, body, pinned }` → 참여자에게 알림 |
+| PUT / DELETE | `/api/classes/:id/announcements/:aid` | (클래스장) 공지 수정·삭제 |
 | GET | `/api/tasks?status=&search=` | 내 일정 목록 |
 | POST | `/api/tasks` | 일정 생성 (배열을 보내면 최대 50개 일괄 생성) |
 | DELETE | `/api/tasks` | 내 일정 전체 삭제 |

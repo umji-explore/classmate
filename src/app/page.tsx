@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  LayoutDashboard, CalendarDays, ListChecks, ListTodo, School, BarChart2, Settings,
+  LayoutDashboard, CalendarDays, ListChecks, ListTodo, School, BarChart2, Settings, Users,
   Search, Bell, Plus, ChevronLeft, ChevronRight, Pencil, Trash2, CheckCheck,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -18,11 +18,12 @@ import AuthScreen from '@/components/AuthScreen';
 import AppearanceSettings from '@/components/AppearanceSettings';
 import SchoolSettings from '@/components/SchoolSettings';
 import SchoolPage from '@/components/SchoolPage';
+import ClassPage from '@/components/ClassPage';
 import { disablePush } from '@/lib/push-client';
 import { applyAppearance, calendarBackgroundCss, Preferences } from '@/lib/appearance';
 
 // ─── Helpers ──────────────────────────────────────────────────
-type Page = 'dashboard' | 'school' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
+type Page = 'dashboard' | 'school' | 'classes' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 const dueText = (t: Task): string => {
   const d = dayDiff(t.due_date);
@@ -108,10 +109,15 @@ function ClassMateApp({
   onUserChange: (user: User) => void;
   onSignedOut: () => void;
 }) {
-  // 학교 알림을 누르면 /?page=school 로 열린다
-  const [activePage, setActivePage] = useState<Page>(() =>
-    new URLSearchParams(window.location.search).get('page') === 'school' && user.school ? 'school' : 'dashboard'
-  );
+  // 학교 알림을 누르면 /?page=school, 클래스 공지 알림을 누르면 /?page=classes&class=<id> 로 열린다
+  const [activePage, setActivePage] = useState<Page>(() => {
+    const page = new URLSearchParams(window.location.search).get('page');
+    if (page === 'school' && user.school) return 'school';
+    if (page === 'classes') return 'classes';
+    return 'dashboard';
+  });
+  const [initialClassId] = useState(() => new URLSearchParams(window.location.search).get('class'));
+  const [classUnread, setClassUnread] = useState(0); // 메뉴에 표시할 클래스 새 공지 수
   useEffect(() => {
     if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
   }, []);
@@ -181,6 +187,13 @@ function ClassMateApp({
       }
     })();
     return () => { cancelled = true; };
+  }, [reloadKey]);
+
+  // 클래스 새 공지 수 (메뉴 배지용) — 클래스 화면에 들어가면 그 화면이 갱신한다
+  useEffect(() => {
+    api<{ classes: { unread: number }[] }>('/api/classes')
+      .then(({ classes }) => setClassUnread(classes.reduce((n, c) => n + c.unread, 0)))
+      .catch(() => {});
   }, [reloadKey]);
 
   const retryLoad = () => {
@@ -433,6 +446,7 @@ function ClassMateApp({
   const PAGE_TITLES: Record<Page, [string, string]> = {
     dashboard: ['대시보드', 'WORKSPACE / OVERVIEW'],
     school: ['학교생활', 'WORKSPACE / SCHOOL'],
+    classes: ['클래스', 'COMMUNITY / CLASSES'],
     checklist: ['체크판', 'WORKSPACE / CHECKLIST'],
     calendar: ['일정 달력', 'WORKSPACE / CALENDAR'],
     tasks: ['과제 관리', 'WORKSPACE / TASKS'],
@@ -1161,6 +1175,7 @@ function ClassMateApp({
     { page: 'checklist', label: '체크', icon: <ListChecks size={20} /> },
     { page: 'calendar', label: '달력', icon: <CalendarDays size={20} /> },
     { page: 'tasks', label: '과제', icon: <ListTodo size={20} /> },
+    { page: 'classes', label: '클래스', icon: <Users size={20} /> },
     ...(user.school ? [] : [{ page: 'stats' as const, label: '통계', icon: <BarChart2 size={20} /> }]),
     { page: 'settings', label: '설정', icon: <Settings size={20} /> },
   ];
@@ -1169,7 +1184,7 @@ function ClassMateApp({
   return (
     <>
       <div className="app-layout">
-        <Sidebar activePage={activePage} onNavigate={navigate} user={user} onLogout={handleLogout} showSchool={!!user.school} />
+        <Sidebar activePage={activePage} onNavigate={navigate} user={user} onLogout={handleLogout} showSchool={!!user.school} classUnread={classUnread} />
 
         <main className="main-content">
           {/* Topbar */}
@@ -1249,6 +1264,9 @@ function ClassMateApp({
             <>
               {activePage === 'dashboard' && renderDashboard()}
               {activePage === 'school' && (user.school ? <SchoolPage key={JSON.stringify(user.school)} school={user.school} /> : renderDashboard())}
+              {activePage === 'classes' && (
+                <ClassPage showToast={showToast} initialClassId={initialClassId} onUnreadChange={setClassUnread} />
+              )}
               {activePage === 'checklist' && renderChecklist()}
               {activePage === 'calendar' && renderCalendar()}
               {activePage === 'tasks' && renderTasks()}
@@ -1270,7 +1288,10 @@ function ClassMateApp({
             onClick={() => navigate(page)}
             aria-label={label}
           >
-            {icon}
+            <span className="mobile-nav-icon">
+              {icon}
+              {page === 'classes' && classUnread > 0 && <span className="mobile-nav-dot" aria-label="새 공지" />}
+            </span>
             <span style={{ fontSize: 9 }}>{label}</span>
           </button>
         ))}

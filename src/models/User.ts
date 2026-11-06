@@ -11,6 +11,8 @@ export interface IUser {
   reset_email_sent_at: Date | null; // 마지막으로 비밀번호 찾기 메일을 보낸 시각 (연속 발송 방지)
   reset_failed_count: number; // 비밀번호 찾기 연속 실패 횟수
   reset_locked_until: Date | null; // 실패가 많을 때 비밀번호 찾기를 잠시 막는 시각
+  class_join_fails?: number; // 틀린 클래스 참여 코드 연속 입력 횟수 (코드 마구 넣어 보기 방지)
+  class_join_locked_until?: Date | null;
   account_type?: 'personal' | 'student'; // 없으면 개인용 (학생용 기능 전에 가입한 계정)
   // 학생용 계정의 학교·반 (나이스 학교 코드)
   school?: {
@@ -51,6 +53,8 @@ const UserSchema = new Schema<IUserDocument>(
     reset_email_sent_at: { type: Date, default: null },
     reset_failed_count: { type: Number, default: 0 },
     reset_locked_until: { type: Date, default: null },
+    class_join_fails: { type: Number, default: 0 },
+    class_join_locked_until: { type: Date, default: null },
     account_type: { type: String, enum: ['personal', 'student'], default: 'personal' },
     school: {
       type: {

@@ -1,9 +1,9 @@
 'use client';
 
-import { LayoutDashboard, CalendarDays, ListChecks, ListTodo, School, BarChart2, Settings, BookOpen, LogOut } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ListChecks, ListTodo, School, BarChart2, Settings, BookOpen, LogOut, Users } from 'lucide-react';
 import type { User } from '@/lib/client';
 
-type Page = 'dashboard' | 'school' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
+type Page = 'dashboard' | 'school' | 'classes' | 'checklist' | 'calendar' | 'tasks' | 'stats' | 'settings';
 
 interface SidebarProps {
   activePage: Page;
@@ -11,6 +11,7 @@ interface SidebarProps {
   user?: User;
   showSchool?: boolean; // 학생용 계정이면 '학교생활' 메뉴 표시
   onLogout?: () => void;
+  classUnread?: number; // 클래스 새 공지 수
 }
 
 const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
@@ -19,9 +20,10 @@ const navItems: { page: Page; label: string; icon: React.ReactNode }[] = [
   { page: 'calendar', label: '일정 달력', icon: <CalendarDays size={18} /> },
   { page: 'tasks', label: '과제 관리', icon: <ListTodo size={18} /> },
   { page: 'stats', label: '학습 통계', icon: <BarChart2 size={18} /> },
+  { page: 'classes', label: '클래스', icon: <Users size={18} /> },
 ];
 
-export default function Sidebar({ activePage, onNavigate, user, onLogout, showSchool }: SidebarProps) {
+export default function Sidebar({ activePage, onNavigate, user, onLogout, showSchool, classUnread = 0 }: SidebarProps) {
   return (
     <aside className="sidebar">
       {/* Brand */}
@@ -48,6 +50,7 @@ export default function Sidebar({ activePage, onNavigate, user, onLogout, showSc
             >
               <span className="nav-icon">{icon}</span>
               {label}
+              {page === 'classes' && classUnread > 0 && <span className="nav-badge">{classUnread > 99 ? '99+' : classUnread}</span>}
             </button>
           ))}
         </nav>

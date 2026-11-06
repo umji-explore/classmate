@@ -2487,3 +2487,512 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── 클래스 (공동체용 공지방) ───────────────────────────────── */
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.mobile-nav-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.mobile-nav-dot {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 2px solid var(--panel);
+}
+
+@media (max-width: 768px) {
+  /* 메뉴가 7개여도 한 줄에 들어가게 */
+  .mobile-nav button {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.class-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.class-action-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.class-action-head h3 {
+  font-size: 15px;
+}
+
+.class-action-head p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.class-action-head .stat-ico {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.class-join-row {
+  display: flex;
+  gap: 8px;
+}
+
+.class-code-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 14px;
+  background: var(--panel);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.class-code-input::placeholder {
+  letter-spacing: 1px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.class-form {
+  display: grid;
+  gap: 8px;
+}
+
+.class-form label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.class-form input,
+.notice-composer input,
+.notice-composer textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.notice-composer input[type='checkbox'] {
+  width: auto;
+}
+
+.notice-composer textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.6;
+}
+
+.class-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.class-open-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.class-push {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--blue-soft);
+  color: var(--ink);
+  font-size: 12px;
+  margin-bottom: 22px;
+}
+
+.class-push > span {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.class-push > svg {
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+.class-section-title {
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+
+.class-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.class-card {
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  transition: transform var(--transition), border-color var(--transition);
+}
+
+.class-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--blue);
+}
+
+.class-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.class-card-top strong {
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-unread {
+  flex-shrink: 0;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.class-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.class-card-meta svg {
+  vertical-align: -2px;
+}
+
+.class-code-mini {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--purple);
+}
+
+.class-card-latest {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-card-latest span {
+  color: var(--muted);
+}
+
+.class-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin-bottom: 14px;
+}
+
+.class-hero {
+  margin-bottom: 16px;
+}
+
+.class-hero-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.class-hero h2 {
+  font-size: 22px;
+  margin: 8px 0 4px;
+  word-break: break-word;
+}
+
+.class-hero p {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.class-code-box {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px dashed var(--blue);
+  border-radius: 14px;
+  background: var(--blue-soft);
+}
+
+.class-code-box span {
+  font-size: 12px;
+  color: var(--muted);
+  display: block;
+}
+
+.class-code-box strong {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 8px;
+  color: var(--blue);
+  margin: 2px 0;
+}
+
+.class-code-box small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.class-tabs {
+  margin-bottom: 14px;
+}
+
+.notice-composer {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.notice-composer h3 {
+  font-size: 15px;
+}
+
+.notice-composer-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.notice-composer-foot .class-form-actions {
+  margin-left: auto;
+}
+
+.notice-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.notice-error {
+  font-size: 12px;
+  color: var(--red);
+}
+
+.notice-list {
+  display: grid;
+  gap: 12px;
+}
+
+.notice-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+}
+
+.notice-card.pinned {
+  border-color: var(--amber);
+}
+
+.notice-card.is-new {
+  border-left: 4px solid var(--red);
+}
+
+.notice-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.notice-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 15px;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.notice-title svg {
+  color: var(--amber);
+}
+
+.notice-new {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--red);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.notice-body {
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.notice-card footer {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.class-leave {
+  margin-top: 20px;
+}
+
+.class-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.member-list {
+  list-style: none;
+  display: grid;
+}
+
+.member-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.member-list li:first-child {
+  border-top: 0;
+}
+
+.member-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-main strong {
+  display: block;
+  font-size: 14px;
+}
+
+.member-main span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.class-settings {
+  display: grid;
+  gap: 20px;
+}
+
+.class-danger {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 768px) {
+  .class-actions {
+    grid-template-columns: 1fr;
+  }
+  .class-push {
+    flex-wrap: wrap;
+  }
+  .class-code-box strong {
+    font-size: 26px;
+    letter-spacing: 6px;
+  }
+}
+
+.class-refresh {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.class-actions-gap {
+  height: 24px;
+}
+
+@media (max-width: 768px) {
+  /* 좁은 화면에서는 새로고침 버튼을 아이콘만 */
+  .class-refresh span {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* 알림 메시지가 하단 메뉴를 가리지 않게 */
+  .toast {
+    bottom: 84px;
+  }
+}

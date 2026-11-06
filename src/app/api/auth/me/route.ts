@@ -1,6 +1,7 @@
 import { connectToDatabase } from '@/lib/mongodb';
 import { destroySession, getSessionUser, verifyPassword } from '@/lib/auth';
 import { handleApiError, jsonError, unauthorized } from '@/lib/api';
+import { deleteUserClassData } from '@/lib/classroom';
 import CalendarImage from '@/models/CalendarImage';
 import PushSubscription from '@/models/PushSubscription';
 import Session from '@/models/Session';
@@ -18,7 +19,7 @@ export async function GET() {
   }
 }
 
-// DELETE /api/auth/me - 회원 탈퇴 (비밀번호 재확인 후 계정·과제·배경 사진·알림 구독·세션 모두 삭제)
+// DELETE /api/auth/me - 회원 탈퇴 (비밀번호 재확인 후 계정·과제·배경 사진·알림 구독·클래스·세션 모두 삭제)
 export async function DELETE(request: Request) {
   try {
     const sessionUser = await getSessionUser();
@@ -34,6 +35,7 @@ export async function DELETE(request: Request) {
     await Task.deleteMany({ owner: sessionUser.id });
     await CalendarImage.deleteOne({ user: user._id });
     await PushSubscription.deleteMany({ user: user._id });
+    await deleteUserClassData(user._id); // 내가 만든 클래스는 삭제, 참여한 클래스에서는 나감
     await destroySession();
     await Session.deleteMany({ user: user._id });
     await user.deleteOne();
