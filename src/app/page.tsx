@@ -15,7 +15,6 @@ import {
 import { dayDiff, fmtDate, getTodayISO, offsetDate, toLocalISO } from '@/lib/date';
 import { api, ApiError, UNAUTHORIZED_EVENT, User } from '@/lib/client';
 import AuthScreen from '@/components/AuthScreen';
-import InstallPrompt, { isStandalone, SHOW_INSTALL_EVENT } from '@/components/InstallPrompt';
 import AppearanceSettings from '@/components/AppearanceSettings';
 import SchoolSettings from '@/components/SchoolSettings';
 import SchoolPage from '@/components/SchoolPage';
@@ -53,12 +52,7 @@ const subscribeNoop = () => () => {};
 export default function Home() {
   const isClient = useSyncExternalStore(subscribeNoop, () => true, () => false);
   if (!isClient) return <LoadingScreen />;
-  return (
-    <>
-      <AuthGate />
-      <InstallPrompt />
-    </>
-  );
+  return <AuthGate />;
 }
 
 function LoadingScreen() {
@@ -193,18 +187,6 @@ function ClassMateApp({
     setLoading(true);
     setReloadKey((k) => k + 1);
   };
-
-  // 홈 화면 앱은 새로고침 버튼이 없으므로, 1분 이상 다른 앱을 보다 돌아오면 일정을 조용히 다시 불러온다
-  // (다른 기기에서 바꾼 일정 반영, 밤새 켜 둔 앱의 '오늘' 날짜 갱신)
-  useEffect(() => {
-    let hiddenAt = 0;
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
-      else if (hiddenAt && Date.now() - hiddenAt > 60_000) setReloadKey((k) => k + 1);
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, []);
 
   // ── Account ───────────────────────────────────────────────────
   const handleLogout = async () => {
@@ -1157,15 +1139,6 @@ function ClassMateApp({
             </div>
           </div>
           <div style={{ display: 'grid', gap: '10px' }}>
-            {!isStandalone() && (
-              <button
-                className="btn-secondary"
-                style={{ textAlign: 'left', padding: '13px' }}
-                onClick={() => window.dispatchEvent(new Event(SHOW_INSTALL_EVENT))}
-              >
-                📲 휴대폰 홈 화면에 앱으로 설치하기
-              </button>
-            )}
             <button className="btn-secondary" style={{ textAlign: 'left', padding: '13px' }} onClick={handleExportCSV}>
               ↓ 과제 목록 CSV 내보내기
             </button>
