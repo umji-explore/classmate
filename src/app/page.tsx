@@ -15,6 +15,7 @@ import {
 import { dayDiff, fmtDate, getTodayISO, offsetDate, toLocalISO } from '@/lib/date';
 import { api, ApiError, UNAUTHORIZED_EVENT, User } from '@/lib/client';
 import AuthScreen from '@/components/AuthScreen';
+import { AuthBrand, WelcomeIntro } from '@/components/WelcomeIntro';
 import AppearanceSettings from '@/components/AppearanceSettings';
 import SchoolSettings from '@/components/SchoolSettings';
 import SchoolPage from '@/components/SchoolPage';
@@ -56,10 +57,15 @@ export default function Home() {
   return <AuthGate />;
 }
 
+// 서버가 처음 보내는 HTML에도 이 화면이 들어가므로, 검색 엔진이 앱 소개 문구를 읽을 수 있다
 function LoadingScreen() {
   return (
     <div className="auth-page">
-      <div className="spinner" aria-label="로딩 중" />
+      <div className="auth-card">
+        <AuthBrand />
+        <WelcomeIntro />
+        <div className="spinner" aria-label="로딩 중" style={{ margin: '8px auto 0' }} />
+      </div>
     </div>
   );
 }

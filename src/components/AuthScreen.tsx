@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { BookOpen, CalendarDays, BarChart2, Bell, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { AuthBrand, WelcomeIntro } from '@/components/WelcomeIntro';
 import { api, ApiError, User } from '@/lib/client';
 import type { AccountType } from '@/lib/school';
 import SchoolPicker, { draftFromSchool, draftToPayload, SchoolDraft } from '@/components/SchoolPicker';
@@ -13,12 +14,6 @@ interface AuthScreenProps {
   onAuthed: (user: User) => void;
   notice?: string | null; // 서버 연결 오류 등 시작 화면에 보여줄 안내
 }
-
-const FEATURES = [
-  { icon: <CalendarDays size={18} />, title: '한눈에 보는 달력', desc: '과제·시험·수행평가를 날짜별로 정리해요.' },
-  { icon: <Bell size={18} />, title: '마감 알림', desc: '3일 이내 마감 일정을 놓치지 않게 알려줘요.' },
-  { icon: <BarChart2 size={18} />, title: '학습 통계', desc: '과목별 진행 상황과 나의 습관을 분석해요.' },
-];
 
 const TITLES: Record<'login' | 'signup' | 'reset', [string, string]> = {
   login: ['로그인', '가입한 아이디와 비밀번호를 입력해 주세요.'],
@@ -101,20 +96,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
     if (mode === 'welcome') {
       return (
         <>
-          <h1 className="auth-title">학교 일정, 이제 한 곳에서 관리해요</h1>
-          <p className="auth-sub">과제·시험·수행평가 마감일을 등록하고 차근차근 완료해 보세요.</p>
-
-          <ul className="auth-features">
-            {FEATURES.map((f) => (
-              <li key={f.title}>
-                <span className="auth-feature-ico">{f.icon}</span>
-                <div>
-                  <strong>{f.title}</strong>
-                  <p>{f.desc}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <WelcomeIntro />
 
           <div className="auth-actions">
             <button className="btn-primary auth-btn" onClick={() => switchMode('signup')}>회원가입</button>
@@ -278,15 +260,7 @@ export default function AuthScreen({ onAuthed, notice }: AuthScreenProps) {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-brand">
-          <div className="brand-mark">
-            <BookOpen size={22} color="white" strokeWidth={2.2} />
-          </div>
-          <div className="brand-text">
-            <strong>ClassMate</strong>
-            <small>STUDY SMARTER</small>
-          </div>
-        </div>
+        <AuthBrand />
 
         {notice && mode !== 'resetSent' && <div className="auth-error" role="alert">{notice}</div>}
 
